@@ -1,4 +1,5 @@
 export type FunnelStage = "catalog" | "pdp" | "atc" | "checkout" | "order";
+export type Locale = "ru" | "en";
 export type AdjustableStage =
   | FunnelStage
   | "traffic"
@@ -9,17 +10,27 @@ export type ImpactType = "relative_percent" | "absolute_pp" | "absolute_value";
 
 export type BaselineInput = {
   sessions: number;
-  catalog: number;
-  pdp: number;
-  atc: number;
-  checkout: number;
-  orders: number;
+  catalogCr: number;
+  pdpCr: number;
+  atcCr: number;
+  checkoutCr: number;
+  orderCr: number;
   buyoutRate: number;
   atv: number;
   upt: number;
 };
 
+export type BaselineAbsolute = {
+  sessions: number;
+  catalog: number;
+  pdp: number;
+  atc: number;
+  checkout: number;
+  orders: number;
+};
+
 export type BaselineDerived = {
+  absolute: BaselineAbsolute;
   grossRevenue: number;
   netRevenue: number;
   orderUnits: number;
@@ -36,7 +47,7 @@ export type FunnelRates = {
 
 export type Task = {
   id: string;
-  stream: string;
+  project: string;
   taskName: string;
   stage1?: AdjustableStage;
   impact1Type?: ImpactType;
@@ -90,8 +101,6 @@ export type SimulationResult = {
   months: MonthlyRow[];
   annual: AnnualFunnel;
 };
-
-export type TrafficScenarioKey = "base" | "plus15" | "plus20" | "plus30";
 
 export type TaskValueMetrics = {
   monthsActive: number;

@@ -118,6 +118,32 @@ h2 {
   flex-wrap: wrap;
 }
 
+.traffic-control {
+  display: grid;
+  gap: 6px;
+}
+
+.traffic-control span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.traffic-control input {
+  width: 180px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: white;
+  padding: 10px 12px;
+}
+
+.traffic-control select {
+  width: 180px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: white;
+  padding: 10px 12px;
+}
+
 .scenario-button,
 .primary-button,
 .ghost-button {
@@ -418,14 +444,14 @@ h2 {
 }
 
 .details-card summary::after {
-  content: "Развернуть";
+  content: "▾";
   margin-left: 10px;
   color: var(--muted);
   font-weight: 500;
 }
 
 .details-card[open] summary::after {
-  content: "Свернуть";
+  content: "▴";
 }
 
 .details-card[open] .section-header {
@@ -458,6 +484,98 @@ h2 {
   background: var(--surface-muted);
 }
 
+.project-groups {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.project-group {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+
+.project-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.project-group-header::-webkit-details-marker {
+  display: none;
+}
+
+.project-group-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.project-group-subtitle {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.project-group-metrics {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+
+.project-group-metrics span,
+.project-task-metric span,
+.task-toggle span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.project-group-metrics strong,
+.project-task-metric strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 15px;
+}
+
+.project-task-list {
+  display: grid;
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+
+.project-task-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: white;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.project-task-main {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.task-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-task-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
 @media (max-width: 1200px) {
   .summary-grid,
   .baseline-grid,
@@ -468,6 +586,10 @@ h2 {
 
   .flow-card::after {
     display: none;
+  }
+
+  .project-task-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -486,5 +608,13 @@ h2 {
   .insight-grid,
   .flow-grid {
     grid-template-columns: 1fr;
+  }
+
+  .project-group-header,
+  .project-group-metrics,
+  .project-task-main,
+  .project-task-grid {
+    grid-template-columns: 1fr;
+    display: grid;
   }
 }

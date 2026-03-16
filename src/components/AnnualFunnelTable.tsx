@@ -1,9 +1,12 @@
 "use client";
 
+import { getText } from "@/lib/i18n";
 import { AnnualFunnel } from "@/lib/types";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
+import { Locale } from "@/lib/types";
 
 type AnnualFunnelTableProps = {
+  locale: Locale;
   baseline: AnnualFunnel;
   projected: AnnualFunnel;
 };
@@ -14,13 +17,14 @@ const renderDelta = (projected: number, baseline: number, formatter: (value: num
   return `${prefix}${formatter(delta)}`;
 };
 
-export function AnnualFunnelTable({ baseline, projected }: AnnualFunnelTableProps) {
+export function AnnualFunnelTable({ locale, baseline, projected }: AnnualFunnelTableProps) {
+  const text = getText(locale);
   return (
     <>
       <div className="section-header">
         <div>
-          <h2>Среднегодовая воронка</h2>
-          <p>Считается из годовых totals, а не как среднее арифметическое месячных CR.</p>
+          <h2>{text.annualTitle}</h2>
+          <p>{text.annualDescription}</p>
         </div>
       </div>
 
@@ -28,10 +32,10 @@ export function AnnualFunnelTable({ baseline, projected }: AnnualFunnelTableProp
         <table className="matrix-table wide">
           <thead>
             <tr>
-              <th>Метрика</th>
-              <th>База</th>
-              <th>После задач</th>
-              <th>Дельта</th>
+              <th>{text.metric}</th>
+              <th>{text.base}</th>
+              <th>{text.afterTasks}</th>
+              <th>{text.delta}</th>
             </tr>
           </thead>
           <tbody>

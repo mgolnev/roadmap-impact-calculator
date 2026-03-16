@@ -1,7 +1,7 @@
-import { MONTH_LABELS, TRAFFIC_SCENARIOS } from "@/lib/constants";
 import {
   AdjustableStage,
   AnnualFunnel,
+  BaselineAbsolute,
   BaselineDerived,
   BaselineInput,
   FunnelRates,
@@ -10,7 +10,6 @@ import {
   SimulationResult,
   Task,
   TaskValueMetrics,
-  TrafficScenarioKey,
 } from "@/lib/types";
 
 const clamp = (value: number, min: number, max: number) =>
@@ -71,13 +70,32 @@ const applyImpacts = (
   return Math.max(0, raw);
 };
 
+export const getBaselineAbsolute = (baseline: BaselineInput): BaselineAbsolute => {
+  const catalog = baseline.sessions * baseline.catalogCr;
+  const pdp = catalog * baseline.pdpCr;
+  const atc = pdp * baseline.atcCr;
+  const checkout = atc * baseline.checkoutCr;
+  const orders = checkout * baseline.orderCr;
+
+  return {
+    sessions: baseline.sessions,
+    catalog,
+    pdp,
+    atc,
+    checkout,
+    orders,
+  };
+};
+
 export const deriveBaseline = (baseline: BaselineInput): BaselineDerived => {
-  const grossRevenue = baseline.orders * baseline.atv;
-  const orderUnits = baseline.orders * baseline.upt;
+  const absolute = getBaselineAbsolute(baseline);
+  const grossRevenue = absolute.orders * baseline.atv;
+  const orderUnits = absolute.orders * baseline.upt;
   const asp = orderUnits > 0 ? grossRevenue / orderUnits : 0;
   const netRevenue = grossRevenue * baseline.buyoutRate;
 
   return {
+    absolute,
     grossRevenue,
     netRevenue,
     orderUnits,
@@ -86,12 +104,14 @@ export const deriveBaseline = (baseline: BaselineInput): BaselineDerived => {
 };
 
 export const getBaseRates = (baseline: BaselineInput): FunnelRates => ({
-  catalogCr: safeDivide(baseline.catalog, baseline.sessions),
-  pdpCr: safeDivide(baseline.pdp, baseline.catalog),
-  atcCr: safeDivide(baseline.atc, baseline.pdp),
-  checkoutCr: safeDivide(baseline.checkout, baseline.atc),
-  orderCr: safeDivide(baseline.orders, baseline.checkout),
+  catalogCr: baseline.catalogCr,
+  pdpCr: baseline.pdpCr,
+  atcCr: baseline.atcCr,
+  checkoutCr: baseline.checkoutCr,
+  orderCr: baseline.orderCr,
 });
+
+export const getTrafficMultiplier = (trafficChangePercent: number) => 1 + trafficChangePercent / 100;
 
 const getToSessionRates = (annual: Omit<AnnualFunnel, "rates" | "toSessionsRates">): FunnelRates => ({
   catalogCr: safeDivide(annual.catalog, annual.sessions),
@@ -100,6 +120,48 @@ const getToSessionRates = (annual: Omit<AnnualFunnel, "rates" | "toSessionsRates
   checkoutCr: safeDivide(annual.checkout, annual.sessions),
   orderCr: safeDivide(annual.orders, annual.sessions),
 });
+
+export const getFullyImplementedRates = (baseline: BaselineInput, tasks: Task[]) => {
+  const activeTasks = tasks.filter((task) => task.active);
+  const baseRates = getBaseRates(baseline);
+
+  const catalogCr = applyImpacts(
+    baseRates.catalogCr,
+    activeTasks.flatMap((task) => getTaskImpact(task, "catalog")),
+    "rate",
+  );
+  const pdpCr = applyImpacts(
+    baseRates.pdpCr,
+    activeTasks.flatMap((task) => getTaskImpact(task, "pdp")),
+    "rate",
+  );
+  const atcCr = applyImpacts(
+    baseRates.atcCr,
+    activeTasks.flatMap((task) => getTaskImpact(task, "atc")),
+    "rate",
+  );
+  const checkoutCr = applyImpacts(
+    baseRates.checkoutCr,
+    activeTasks.flatMap((task) => getTaskImpact(task, "checkout")),
+    "rate",
+  );
+  const orderCr = applyImpacts(
+    baseRates.orderCr,
+    activeTasks.flatMap((task) => getTaskImpact(task, "order")),
+    "rate",
+  );
+
+  return {
+    rates: {
+      catalogCr,
+      pdpCr,
+      atcCr,
+      checkoutCr,
+      orderCr,
+    },
+    orderToSessions: catalogCr * pdpCr * atcCr * checkoutCr * orderCr,
+  };
+};
 
 const toAnnualFunnel = (months: MonthlyRow[]): AnnualFunnel => {
   const annualBase = {
@@ -149,13 +211,12 @@ const getMonthlyBase = (baseline: BaselineInput) => ({
 export const simulateScenario = (
   baseline: BaselineInput,
   tasks: Task[],
-  scenario: TrafficScenarioKey,
+  trafficMultiplier: number,
 ): SimulationResult => {
   const baseRates = getBaseRates(baseline);
   const monthlyBase = getMonthlyBase(baseline);
-  const trafficMultiplier = TRAFFIC_SCENARIOS[scenario].multiplier;
 
-  const months: MonthlyRow[] = MONTH_LABELS.map((monthLabel, index) => {
+  const months: MonthlyRow[] = Array.from({ length: 12 }, (_, index) => {
     const month = index + 1;
     const activeTasks = tasks.filter((task) => task.active && task.releaseMonth <= month);
 
@@ -196,7 +257,7 @@ export const simulateScenario = (
 
     return {
       month,
-      monthLabel,
+      monthLabel: String(month),
       sessions,
       catalog,
       pdp,
@@ -224,7 +285,7 @@ const simulateWithSingleTask = (
   baseline: BaselineInput,
   tasks: Task[],
   taskId: string,
-  scenario: TrafficScenarioKey,
+  trafficMultiplier: number,
 ) =>
   simulateScenario(
     baseline,
@@ -232,53 +293,79 @@ const simulateWithSingleTask = (
       ...task,
       active: task.id === taskId,
     })),
-    scenario,
+    trafficMultiplier,
   );
 
-const simulateWithoutTask = (
+const getPlanContributionByTaskId = (
   baseline: BaselineInput,
   tasks: Task[],
-  taskId: string,
-  scenario: TrafficScenarioKey,
-) =>
-  simulateScenario(
-    baseline,
-    tasks.map((task) =>
-      task.id === taskId
-        ? {
-            ...task,
-            active: false,
-          }
-        : task,
-    ),
-    scenario,
-  );
+  trafficMultiplier: number,
+) => {
+  const activeTasksInPlanOrder = tasks
+    .map((task, index) => ({ task, index }))
+    .filter(({ task }) => task.active)
+    .sort((left, right) => {
+      if (left.task.releaseMonth !== right.task.releaseMonth) {
+        return left.task.releaseMonth - right.task.releaseMonth;
+      }
+
+      return left.index - right.index;
+    })
+    .map(({ task }) => task);
+
+  const contributions = new Map<string, number>();
+  let previousNetRevenue = simulateScenario(baseline, [], trafficMultiplier).annual.netRevenue;
+
+  activeTasksInPlanOrder.forEach((task, index) => {
+    const scenarioTasks = activeTasksInPlanOrder.slice(0, index + 1);
+    const currentNetRevenue = simulateScenario(
+      baseline,
+      tasks.map((entry) => ({
+        ...entry,
+        active: scenarioTasks.some((scenarioTask) => scenarioTask.id === entry.id),
+      })),
+      trafficMultiplier,
+    ).annual.netRevenue;
+
+    contributions.set(task.id, currentNetRevenue - previousNetRevenue);
+    previousNetRevenue = currentNetRevenue;
+  });
+
+  return contributions;
+};
 
 export const getTaskValueMetrics = (
   baseline: BaselineInput,
   tasks: Task[],
-  currentScenario: TrafficScenarioKey,
+  currentTrafficChangePercent: number,
 ): Record<string, TaskValueMetrics> => {
-  const baseScenarioNet = simulateScenario(baseline, [], "base").annual.netRevenue;
-  const plus15BaseNet = simulateScenario(baseline, [], "plus15").annual.netRevenue;
-  const plus20BaseNet = simulateScenario(baseline, [], "plus20").annual.netRevenue;
-  const plus30BaseNet = simulateScenario(baseline, [], "plus30").annual.netRevenue;
-  const currentAllTasksNet = simulateScenario(baseline, tasks, currentScenario).annual.netRevenue;
+  const baseScenarioNet = simulateScenario(baseline, [], getTrafficMultiplier(0)).annual.netRevenue;
+  const plus15BaseNet = simulateScenario(baseline, [], getTrafficMultiplier(15)).annual.netRevenue;
+  const plus20BaseNet = simulateScenario(baseline, [], getTrafficMultiplier(20)).annual.netRevenue;
+  const plus30BaseNet = simulateScenario(baseline, [], getTrafficMultiplier(30)).annual.netRevenue;
+  const currentPlanContributions = getPlanContributionByTaskId(
+    baseline,
+    tasks,
+    getTrafficMultiplier(currentTrafficChangePercent),
+  );
 
   return Object.fromEntries(
     tasks.map((task) => {
       const standaloneBase =
-        simulateWithSingleTask(baseline, tasks, task.id, "base").annual.netRevenue - baseScenarioNet;
+        simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(0)).annual.netRevenue -
+        baseScenarioNet;
       const standalone15 =
-        simulateWithSingleTask(baseline, tasks, task.id, "plus15").annual.netRevenue - plus15BaseNet;
+        simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(15)).annual.netRevenue -
+        plus15BaseNet;
       const standalone20 =
-        simulateWithSingleTask(baseline, tasks, task.id, "plus20").annual.netRevenue - plus20BaseNet;
+        simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(20)).annual.netRevenue -
+        plus20BaseNet;
       const standalone30 =
-        simulateWithSingleTask(baseline, tasks, task.id, "plus30").annual.netRevenue - plus30BaseNet;
+        simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(30)).annual.netRevenue -
+        plus30BaseNet;
       const monthsActive = Math.max(0, 13 - task.releaseMonth);
       const incrementalCurrent = task.active
-        ? currentAllTasksNet -
-          simulateWithoutTask(baseline, tasks, task.id, currentScenario).annual.netRevenue
+        ? currentPlanContributions.get(task.id) ?? 0
         : 0;
 
       return [

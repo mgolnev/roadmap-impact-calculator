@@ -1,55 +1,12 @@
-import { BaselineInput, ImpactType, Task, TrafficScenarioKey } from "@/lib/types";
-
-export const MONTH_LABELS = [
-  "Янв",
-  "Фев",
-  "Мар",
-  "Апр",
-  "Май",
-  "Июн",
-  "Июл",
-  "Авг",
-  "Сен",
-  "Окт",
-  "Ноя",
-  "Дек",
-] as const;
-
-export const STAGE_LABELS = {
-  catalog: "Каталог",
-  pdp: "Карточка товара",
-  atc: "Добавление в корзину",
-  checkout: "Чекаут",
-  order: "Заказ",
-  traffic: "Трафик",
-  atv: "ATV / средний чек",
-  buyout: "% выкупа",
-  upt: "UPT",
-} as const;
-
-export const IMPACT_TYPE_LABELS: Record<ImpactType, string> = {
-  relative_percent: "% рост / снижение",
-  absolute_pp: "П.п.",
-  absolute_value: "Абсолютное значение",
-};
-
-export const TRAFFIC_SCENARIOS: Record<
-  TrafficScenarioKey,
-  { label: string; multiplier: number }
-> = {
-  base: { label: "Base 100%", multiplier: 1 },
-  plus15: { label: "Traffic +15%", multiplier: 1.15 },
-  plus20: { label: "Traffic +20%", multiplier: 1.2 },
-  plus30: { label: "Traffic +30%", multiplier: 1.3 },
-};
+import { BaselineInput, Task } from "@/lib/types";
 
 export const DEFAULT_BASELINE: BaselineInput = {
   sessions: 32191999,
-  catalog: 20469722,
-  pdp: 13975634,
-  atc: 3513201,
-  checkout: 1545252,
-  orders: 642534,
+  catalogCr: 0.61,
+  pdpCr: 0.735,
+  atcCr: 0.27,
+  checkoutCr: 0.44,
+  orderCr: 0.49,
   buyoutRate: 0.62,
   atv: 2312.912,
   upt: 2.536,
@@ -63,7 +20,7 @@ const createTask = (task: Omit<Task, "id">, id: number): Task => ({
 export const DEFAULT_TASKS: Task[] = [
   createTask(
     {
-      stream: "New Checkout",
+      project: "New Checkout",
       taskName: "Checkout Redesign",
       stage1: "order",
       impact1Type: "relative_percent",
@@ -79,7 +36,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "New Checkout",
+      project: "New Checkout",
       taskName: "Delivery time slot selection",
       stage1: "order",
       impact1Type: "relative_percent",
@@ -95,7 +52,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "New Checkout",
+      project: "New Checkout",
       taskName: "Integration with PDP Delivery",
       stage1: "order",
       impact1Type: "relative_percent",
@@ -111,7 +68,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "New Checkout",
+      project: "New Checkout",
       taskName: "Integration with Yandex Delivery",
       stage1: "order",
       impact1Type: "relative_percent",
@@ -127,7 +84,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "New Checkout",
+      project: "New Checkout",
       taskName: "BNPL",
       stage1: "order",
       impact1Type: "relative_percent",
@@ -143,7 +100,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "New Checkout",
+      project: "New Checkout",
       taskName: "Partial Order Fulfillment",
       stage1: "buyout",
       impact1Type: "relative_percent",
@@ -159,7 +116,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "New Cart",
+      project: "New Cart",
       taskName: "Cart checkboxes / selection of items in the cart",
       stage1: "checkout",
       impact1Type: "relative_percent",
@@ -175,7 +132,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "PDP",
+      project: "PDP",
       taskName: "PDP delivery info block",
       stage1: "atc",
       impact1Type: "relative_percent",
@@ -191,7 +148,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "Recs and perso",
+      project: "Recs and perso",
       taskName: "Relevant Recommendation in Cart",
       stage1: "atv",
       impact1Type: "relative_percent",
@@ -207,7 +164,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "Cart Split",
+      project: "Cart Split",
       taskName: "Cart Split",
       stage1: "checkout",
       impact1Type: "absolute_pp",
@@ -223,7 +180,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "UX|UI",
+      project: "UX|UI",
       taskName: "New Homepage",
       stage1: "catalog",
       impact1Type: "relative_percent",
@@ -239,7 +196,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "UX|UI",
+      project: "UX|UI",
       taskName: "New Navigation Menu",
       stage1: "catalog",
       impact1Type: "relative_percent",
@@ -255,7 +212,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "UX|UI",
+      project: "UX|UI",
       taskName: "New Product Listing",
       stage1: "pdp",
       impact1Type: "relative_percent",
@@ -271,7 +228,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "Promo",
+      project: "Promo",
       taskName: "Promotion Landing Page Builder",
       stage1: "catalog",
       impact1Type: "relative_percent",
@@ -287,7 +244,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "Organic traffic",
+      project: "Organic traffic",
       taskName: "SEO & Organic Traffic Recovery",
       stage1: "traffic",
       impact1Type: "relative_percent",
@@ -303,7 +260,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "Promo",
+      project: "Promo",
       taskName: "Cascading Promo Codes",
       stage1: "buyout",
       impact1Type: "relative_percent",
@@ -319,7 +276,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "Fast front A/B",
+      project: "Fast front A/B",
       taskName: "A/B Testing Platform",
       stage1: "atc",
       impact1Type: "relative_percent",
@@ -335,7 +292,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "Recs and perso",
+      project: "Recs and perso",
       taskName: "Gravity Field",
       stage1: "atc",
       impact1Type: "relative_percent",
@@ -351,7 +308,7 @@ export const DEFAULT_TASKS: Task[] = [
   ),
   createTask(
     {
-      stream: "Tech debt",
+      project: "Tech debt",
       taskName: "Load speed",
       stage1: "pdp",
       impact1Type: "relative_percent",

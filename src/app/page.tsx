@@ -5,60 +5,52 @@ import * as XLSX from "xlsx";
 
 import { AnnualFunnelTable } from "@/components/AnnualFunnelTable";
 import { BaselineTable } from "@/components/BaselineTable";
-import { CurrentStateOverview } from "@/components/CurrentStateOverview";
 import { ImpactHighlights } from "@/components/ImpactHighlights";
 import { MonthlyModelTable } from "@/components/MonthlyModelTable";
 import { TasksTable } from "@/components/TasksTable";
-import { TRAFFIC_SCENARIOS } from "@/lib/constants";
-import { getTaskValueMetrics, simulateScenario } from "@/lib/calculations";
-import { TrafficScenarioKey } from "@/lib/types";
+import { getText } from "@/lib/i18n";
+import { buildRoadmapImpactWorkbook } from "@/lib/export";
+import {
+  getFullyImplementedRates,
+  getTaskValueMetrics,
+  getTrafficMultiplier,
+  simulateScenario,
+} from "@/lib/calculations";
 import { useCalculatorStore } from "@/store/calculator-store";
-
-const annualExportRows = (label: string, annual: ReturnType<typeof simulateScenario>["annual"]) => [
-  {
-    scenario: label,
-    sessions: annual.sessions,
-    catalog: annual.catalog,
-    pdp: annual.pdp,
-    atc: annual.atc,
-    checkout: annual.checkout,
-    orders: annual.orders,
-    grossRevenue: annual.grossRevenue,
-    netRevenue: annual.netRevenue,
-    catalogCr: annual.rates.catalogCr,
-    pdpCr: annual.rates.pdpCr,
-    atcCr: annual.rates.atcCr,
-    checkoutCr: annual.rates.checkoutCr,
-    orderCr: annual.rates.orderCr,
-    orderToSessions: annual.toSessionsRates.orderCr,
-  },
-];
 
 export default function HomePage() {
   const {
     baseline,
     tasks,
-    scenario,
-    setScenario,
+    trafficChangePercent,
+    locale,
+    setLocale,
+    setTrafficChangePercent,
     updateBaseline,
     resetBaseline,
     updateTask,
+    setAllTasksActive,
     addTask,
     removeTask,
     duplicateTask,
   } = useCalculatorStore();
+  const text = getText(locale);
 
   const baselineSimulation = useMemo(
-    () => simulateScenario(baseline, [], scenario),
-    [baseline, scenario],
+    () => simulateScenario(baseline, [], getTrafficMultiplier(trafficChangePercent)),
+    [baseline, trafficChangePercent],
   );
   const projectedSimulation = useMemo(
-    () => simulateScenario(baseline, tasks, scenario),
-    [baseline, scenario, tasks],
+    () => simulateScenario(baseline, tasks, getTrafficMultiplier(trafficChangePercent)),
+    [baseline, trafficChangePercent, tasks],
   );
   const taskMetrics = useMemo(
-    () => getTaskValueMetrics(baseline, tasks, scenario),
-    [baseline, scenario, tasks],
+    () => getTaskValueMetrics(baseline, tasks, trafficChangePercent),
+    [baseline, trafficChangePercent, tasks],
+  );
+  const fullyImplementedRates = useMemo(
+    () => getFullyImplementedRates(baseline, tasks),
+    [baseline, tasks],
   );
   const topTasks = useMemo(
     () =>
@@ -74,74 +66,13 @@ export default function HomePage() {
   );
 
   const exportWorkbook = () => {
-    const workbook = XLSX.utils.book_new();
-
-    const summarySheet = XLSX.utils.json_to_sheet([
-      {
-        scenario: TRAFFIC_SCENARIOS[scenario].label,
-        baselineNetRevenue: baselineSimulation.annual.netRevenue,
-        projectedNetRevenue: projectedSimulation.annual.netRevenue,
-        deltaNetRevenue:
-          projectedSimulation.annual.netRevenue - baselineSimulation.annual.netRevenue,
-        baselineGrossRevenue: baselineSimulation.annual.grossRevenue,
-        projectedGrossRevenue: projectedSimulation.annual.grossRevenue,
-        deltaGrossRevenue:
-          projectedSimulation.annual.grossRevenue - baselineSimulation.annual.grossRevenue,
-        baselineOrders: baselineSimulation.annual.orders,
-        projectedOrders: projectedSimulation.annual.orders,
-        deltaOrders: projectedSimulation.annual.orders - baselineSimulation.annual.orders,
-      },
-    ]);
-
-    const annualSheet = XLSX.utils.json_to_sheet([
-      ...annualExportRows("Baseline", baselineSimulation.annual),
-      ...annualExportRows("Projected", projectedSimulation.annual),
-    ]);
-
-    const monthlySheet = XLSX.utils.json_to_sheet(
-      projectedSimulation.months.map((row) => ({
-        month: row.monthLabel,
-        sessions: row.sessions,
-        catalog: row.catalog,
-        pdp: row.pdp,
-        atc: row.atc,
-        checkout: row.checkout,
-        orders: row.orders,
-        atv: row.atv,
-        buyoutRate: row.buyoutRate,
-        grossRevenue: row.grossRevenue,
-        netRevenue: row.netRevenue,
-        activeTasks: row.activeTaskIds.length,
-      })),
-    );
-
-    const tasksSheet = XLSX.utils.json_to_sheet(
-      tasks.map((task) => ({
-        active: task.active,
-        stream: task.stream,
-        taskName: task.taskName,
-        stage1: task.stage1 ?? "",
-        impact1Type: task.impact1Type ?? "",
-        impact1Value: task.impact1Value,
-        stage2: task.stage2 ?? "",
-        impact2Type: task.impact2Type ?? "",
-        impact2Value: task.impact2Value,
-        releaseMonth: task.releaseMonth,
-        monthsActive: taskMetrics[task.id]?.monthsActive ?? 0,
-        standaloneBase: taskMetrics[task.id]?.standaloneBase ?? 0,
-        incrementalCurrent: taskMetrics[task.id]?.incrementalCurrent ?? 0,
-        standalone15: taskMetrics[task.id]?.standalone15 ?? 0,
-        standalone20: taskMetrics[task.id]?.standalone20 ?? 0,
-        standalone30: taskMetrics[task.id]?.standalone30 ?? 0,
-        comment: task.comment,
-      })),
-    );
-
-    XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
-    XLSX.utils.book_append_sheet(workbook, annualSheet, "Annual funnel");
-    XLSX.utils.book_append_sheet(workbook, monthlySheet, "Monthly model");
-    XLSX.utils.book_append_sheet(workbook, tasksSheet, "Tasks");
-
+    const workbook = buildRoadmapImpactWorkbook({
+      locale,
+      baseline,
+      tasks,
+      trafficChangePercent,
+      taskMetrics,
+    });
     XLSX.writeFile(workbook, "roadmap-impact-calculator-2026.xlsx");
   };
 
@@ -149,70 +80,75 @@ export default function HomePage() {
     <main className="page-shell">
       <section className="hero">
         <div>
-          <p className="eyebrow">Roadmap Impact Calculator 2026</p>
-          <h1>Калькулятор влияния задач на воронку и выручку</h1>
-          <p className="hero-text">
-            Базовый режим MVP делит годовую базу на 12 равных месяцев и считает эффект только с
-            месяца релиза задачи. Все значения редактируются вручную.
-          </p>
+          <p className="eyebrow">{text.heroEyebrow}</p>
+          <h1>{text.heroTitle}</h1>
+          <p className="hero-text">{text.heroDescription}</p>
         </div>
 
         <div className="toolbar">
-          <div className="scenario-switcher">
-            {(Object.entries(TRAFFIC_SCENARIOS) as Array<
-              [TrafficScenarioKey, { label: string; multiplier: number }]
-            >).map(([key, option]) => (
-              <button
-                key={key}
-                className={`scenario-button ${scenario === key ? "active" : ""}`}
-                onClick={() => setScenario(key)}
-                type="button"
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <label className="traffic-control">
+            <span>{text.language}</span>
+            <select value={locale} onChange={(event) => setLocale(event.target.value as "ru" | "en")}>
+              <option value="ru">RU</option>
+              <option value="en">EN</option>
+            </select>
+          </label>
+          <label className="traffic-control">
+            <span>{text.trafficChange}</span>
+            <input
+              type="number"
+              step="0.1"
+              value={trafficChangePercent}
+              onChange={(event) => setTrafficChangePercent(Number(event.target.value))}
+            />
+          </label>
           <button className="primary-button" onClick={exportWorkbook} type="button">
-            Export to XLSX
+            {text.export}
           </button>
         </div>
       </section>
 
-      <CurrentStateOverview annual={baselineSimulation.annual} baseline={baseline} />
-
-      <BaselineTable baseline={baseline} onChange={updateBaseline} onReset={resetBaseline} />
+      <BaselineTable locale={locale} baseline={baseline} onChange={updateBaseline} onReset={resetBaseline} />
 
       <ImpactHighlights
-        scenario={scenario}
+        locale={locale}
+        trafficChangePercent={trafficChangePercent}
         baselineGross={baselineSimulation.annual.grossRevenue}
         projectedGross={projectedSimulation.annual.grossRevenue}
         baselineNet={baselineSimulation.annual.netRevenue}
         projectedNet={projectedSimulation.annual.netRevenue}
         baselineOrders={baselineSimulation.annual.orders}
         projectedOrders={projectedSimulation.annual.orders}
+        baselineAnnual={baselineSimulation.annual}
+        projectedAnnual={projectedSimulation.annual}
+        fullyImplementedRates={fullyImplementedRates.rates}
+        fullyImplementedOrderToSessions={fullyImplementedRates.orderToSessions}
         topTasks={topTasks}
       />
 
       <TasksTable
+        locale={locale}
         tasks={tasks}
         taskMetrics={taskMetrics}
         onUpdate={updateTask}
+        onSetAllActive={setAllTasksActive}
         onAdd={addTask}
         onRemove={removeTask}
         onDuplicate={duplicateTask}
       />
 
       <details className="section-card details-card">
-        <summary>Подробная среднегодовая воронка</summary>
+        <summary>{text.detailedAnnual}</summary>
         <AnnualFunnelTable
+          locale={locale}
           baseline={baselineSimulation.annual}
           projected={projectedSimulation.annual}
         />
       </details>
 
       <details className="section-card details-card">
-        <summary>Помесячная модель 2026</summary>
-        <MonthlyModelTable rows={projectedSimulation.months} />
+        <summary>{text.monthlyModel}</summary>
+        <MonthlyModelTable locale={locale} rows={projectedSimulation.months} />
       </details>
     </main>
   );

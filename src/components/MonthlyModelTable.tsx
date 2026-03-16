@@ -1,19 +1,23 @@
 "use client";
 
+import { getMonthLabel, getText } from "@/lib/i18n";
 import { MonthlyRow } from "@/lib/types";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
+import { Locale } from "@/lib/types";
 
 type MonthlyModelTableProps = {
+  locale: Locale;
   rows: MonthlyRow[];
 };
 
-export function MonthlyModelTable({ rows }: MonthlyModelTableProps) {
+export function MonthlyModelTable({ locale, rows }: MonthlyModelTableProps) {
+  const text = getText(locale);
   return (
     <>
       <div className="section-header">
         <div>
-          <h2>Помесячная модель 2026</h2>
-          <p>Задача влияет только с месяца релиза и до конца года.</p>
+          <h2>{text.monthlyTitle}</h2>
+          <p>{text.monthlyDescription}</p>
         </div>
       </div>
 
@@ -21,24 +25,24 @@ export function MonthlyModelTable({ rows }: MonthlyModelTableProps) {
         <table className="matrix-table wide">
           <thead>
             <tr>
-              <th>Месяц</th>
-              <th>Sessions</th>
+              <th>{text.month}</th>
+              <th>{text.sessions}</th>
               <th>Catalog</th>
               <th>PDP</th>
               <th>ATC</th>
               <th>Checkout</th>
               <th>Orders</th>
-              <th>ATV</th>
-              <th>Buyout</th>
-              <th>Gross</th>
-              <th>Net</th>
-              <th>Активные задачи</th>
+              <th>{text.atv}</th>
+              <th>{text.buyout}</th>
+              <th>{text.grossRevenue}</th>
+              <th>{text.netRevenue}</th>
+              <th>{text.activeTasksCount}</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.month}>
-                <td>{row.monthLabel}</td>
+                <td>{getMonthLabel(locale, row.month)}</td>
                 <td>{formatNumber(row.sessions)}</td>
                 <td>{formatNumber(row.catalog)}</td>
                 <td>{formatNumber(row.pdp)}</td>

@@ -1,11 +1,11 @@
 "use client";
 
-import { AnnualFunnel, BaselineInput } from "@/lib/types";
+import { BaselineInput } from "@/lib/types";
+import { deriveBaseline } from "@/lib/calculations";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
 
 type CurrentStateOverviewProps = {
   baseline: BaselineInput;
-  annual: AnnualFunnel;
 };
 
 const FLOW_ITEMS = [
@@ -17,7 +17,9 @@ const FLOW_ITEMS = [
   { key: "orders", label: "Заказы" },
 ] as const;
 
-export function CurrentStateOverview({ baseline, annual }: CurrentStateOverviewProps) {
+export function CurrentStateOverview({ baseline }: CurrentStateOverviewProps) {
+  const derived = deriveBaseline(baseline);
+
   return (
     <section className="section-card">
       <div className="section-header">
@@ -31,7 +33,7 @@ export function CurrentStateOverview({ baseline, annual }: CurrentStateOverviewP
         {FLOW_ITEMS.map((item) => (
           <div className="flow-card" key={item.key}>
             <span>{item.label}</span>
-            <strong>{formatNumber(baseline[item.key])}</strong>
+            <strong>{formatNumber(derived.absolute[item.key])}</strong>
           </div>
         ))}
       </div>
@@ -39,11 +41,11 @@ export function CurrentStateOverview({ baseline, annual }: CurrentStateOverviewP
       <div className="insight-grid">
         <div className="insight-card">
           <span>Gross revenue</span>
-          <strong>{formatCurrency(annual.grossRevenue)}</strong>
+          <strong>{formatCurrency(derived.grossRevenue)}</strong>
         </div>
         <div className="insight-card">
           <span>Net revenue</span>
-          <strong>{formatCurrency(annual.netRevenue)}</strong>
+          <strong>{formatCurrency(derived.netRevenue)}</strong>
         </div>
         <div className="insight-card">
           <span>% выкупа</span>
@@ -59,7 +61,7 @@ export function CurrentStateOverview({ baseline, annual }: CurrentStateOverviewP
         </div>
         <div className="insight-card">
           <span>Order / Sessions</span>
-          <strong>{formatPercent(annual.toSessionsRates.orderCr)}</strong>
+          <strong>{formatPercent(derived.absolute.orders / baseline.sessions)}</strong>
         </div>
       </div>
     </section>
