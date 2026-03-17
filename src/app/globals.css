@@ -299,10 +299,29 @@ h2 {
   letter-spacing: 0.04em;
 }
 
+.tasks-filters {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
 .filters-row {
   display: grid;
-  grid-template-columns: minmax(260px, 1.5fr) repeat(2, minmax(180px, 1fr)) auto;
   gap: 10px;
+}
+
+.filters-row-primary {
+  grid-template-columns: minmax(260px, 1.5fr) repeat(3, minmax(180px, 1fr));
+}
+
+.filters-row-secondary {
+  grid-template-columns: minmax(220px, 360px) fit-content(240px);
+  justify-content: start;
+}
+
+.tasks-toolbar {
+  justify-content: flex-start;
+  align-items: center;
   margin-top: 12px;
 }
 
@@ -701,7 +720,12 @@ h2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .filters-row {
+  .filters-row,
+  .filters-row-primary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filters-row-secondary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -730,5 +754,10 @@ h2 {
   .filters-row {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .filters-row-primary,
+  .filters-row-secondary {
+    grid-template-columns: 1fr;
   }
 }

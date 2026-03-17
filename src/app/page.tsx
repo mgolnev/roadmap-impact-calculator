@@ -10,6 +10,7 @@ import { MonthlyModelTable } from "@/components/MonthlyModelTable";
 import { TasksTable } from "@/components/TasksTable";
 import { getText } from "@/lib/i18n";
 import { buildRoadmapImpactWorkbook } from "@/lib/export";
+import { buildScenarioBackupWorkbook, parseScenarioBackupWorkbook } from "@/lib/scenario-backup";
 import { buildTaskImportWorkbook, parseTaskImportWorkbook } from "@/lib/task-template";
 import {
   getFullyImplementedRates,
@@ -26,6 +27,7 @@ export default function HomePage() {
     tasks,
     trafficChangePercent,
     locale,
+    setBaseline,
     setLocale,
     setTrafficChangePercent,
     updateBaseline,
@@ -39,7 +41,7 @@ export default function HomePage() {
   } = useCalculatorStore();
   const text = getText(locale);
   const [importState, setImportState] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
+  const [activeImport, setActiveImport] = useState<"tasks" | "scenario" | null>(null);
   const [selectedStageFilter, setSelectedStageFilter] = useState<AdjustableStage | "">("");
 
   const baselineSimulation = useMemo(
@@ -107,8 +109,23 @@ export default function HomePage() {
     setImportState(null);
   };
 
+  const exportScenarioBackup = () => {
+    const workbook = buildScenarioBackupWorkbook({
+      locale,
+      baseline,
+      tasks,
+      trafficChangePercent,
+    });
+
+    XLSX.writeFile(
+      workbook,
+      locale === "ru" ? "backup-scenario-roadmap.xlsx" : "roadmap-scenario-backup.xlsx",
+    );
+    setImportState(null);
+  };
+
   const importTasksFromWorkbook = async (file: File) => {
-    setIsImporting(true);
+    setActiveImport("tasks");
     setImportState(null);
 
     try {
@@ -131,7 +148,42 @@ export default function HomePage() {
             : text.importError,
       });
     } finally {
-      setIsImporting(false);
+      setActiveImport(null);
+    }
+  };
+
+  const importScenarioFromWorkbook = async (file: File) => {
+    setActiveImport("scenario");
+    setImportState(null);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const imported = parseScenarioBackupWorkbook(buffer, locale);
+      const importedText = getText(imported.locale);
+
+      setLocale(imported.locale);
+      setBaseline(imported.baseline);
+      setTasks(imported.tasks);
+      setTrafficChangePercent(imported.trafficChangePercent);
+      setSelectedStageFilter("");
+
+      setImportState({
+        type: "success",
+        message:
+          imported.locale === "ru"
+            ? `${importedText.scenarioImportSuccess} Импортировано задач: ${imported.tasks.length}.`
+            : `${importedText.scenarioImportSuccess} Imported tasks: ${imported.tasks.length}.`,
+      });
+    } catch (error) {
+      setImportState({
+        type: "error",
+        message:
+          error instanceof Error
+            ? `${text.scenarioImportError}\n${error.message}`
+            : text.scenarioImportError,
+      });
+    } finally {
+      setActiveImport(null);
     }
   };
 
@@ -195,12 +247,14 @@ export default function HomePage() {
         tasks={tasks}
         taskMetrics={taskMetrics}
         importState={importState}
-        isImporting={isImporting}
+        activeImport={activeImport}
         stageFilter={selectedStageFilter}
         onUpdate={updateTask}
         onStageFilterChange={setSelectedStageFilter}
         onSetAllActive={setAllTasksActive}
         onAdd={addTask}
+        onDownloadScenario={exportScenarioBackup}
+        onImportScenario={importScenarioFromWorkbook}
         onDownloadTemplate={exportTaskTemplate}
         onImportFile={importTasksFromWorkbook}
         onRemove={removeTask}

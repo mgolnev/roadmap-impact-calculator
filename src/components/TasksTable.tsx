@@ -12,12 +12,14 @@ type TasksTableProps = {
   tasks: Task[];
   taskMetrics: Record<string, TaskValueMetrics>;
   importState: { type: "success" | "error"; message: string } | null;
-  isImporting: boolean;
+  activeImport: "tasks" | "scenario" | null;
   stageFilter: AdjustableStage | "";
   onUpdate: <K extends keyof Task>(id: string, key: K, value: Task[K]) => void;
   onStageFilterChange: (stage: AdjustableStage | "") => void;
   onSetAllActive: (active: boolean) => void;
   onAdd: () => void;
+  onDownloadScenario: () => void;
+  onImportScenario: (file: File) => Promise<void>;
   onDownloadTemplate: () => void;
   onImportFile: (file: File) => Promise<void>;
   onRemove: (id: string) => void;
@@ -182,12 +184,14 @@ export function TasksTable({
   tasks,
   taskMetrics,
   importState,
-  isImporting,
+  activeImport,
   stageFilter,
   onUpdate,
   onStageFilterChange,
   onSetAllActive,
   onAdd,
+  onDownloadScenario,
+  onImportScenario,
   onDownloadTemplate,
   onImportFile,
   onRemove,
@@ -198,6 +202,7 @@ export function TasksTable({
   const [priorityFilter, setPriorityFilter] = useState<Priority | "">("");
   const [sortMode, setSortMode] = useState<"" | "priority_desc" | "priority_asc">("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const scenarioFileInputRef = useRef<HTMLInputElement | null>(null);
   const text = getText(locale);
   const stageLabels = getStageLabels(locale);
   const priorityLabels = getPriorityLabels(locale);
@@ -245,117 +250,148 @@ export function TasksTable({
       <div className="section-header">
         <div>
           <h2>{text.tasksTitle}</h2>
-          <p>{text.tasksDescription}</p>
         </div>
-        <div className="toolbar">
-          <input
-            ref={fileInputRef}
-            accept=".xlsx,.xls"
-            className="hidden-file-input"
-            type="file"
-            onChange={async (event) => {
-              const file = event.target.files?.[0];
-              if (!file) {
-                return;
-              }
+      </div>
 
-              await onImportFile(file);
-              event.target.value = "";
-            }}
+      <div className="tasks-filters">
+        <div className="filters-row filters-row-primary">
+          <input
+            className="cell-input"
+            placeholder={text.taskSearchPlaceholder}
+            value={searchValue}
+            onChange={(event) => setSearchValue(event.target.value)}
           />
-          <button className="ghost-button" onClick={() => onSetAllActive(true)} type="button">
-            {text.selectAll}
-          </button>
-          <button className="ghost-button" onClick={() => onSetAllActive(false)} type="button">
-            {text.deselectAll}
-          </button>
-          <button className="ghost-button" onClick={onDownloadTemplate} type="button">
-            {text.downloadTemplate}
-          </button>
+          <select
+            className="cell-input"
+            value={projectFilter}
+            onChange={(event) => setProjectFilter(event.target.value)}
+          >
+            <option value="">{text.allProjects}</option>
+            {projectOptions.map((project) => (
+              <option key={project} value={project}>
+                {project}
+              </option>
+            ))}
+          </select>
+          <select
+            className="cell-input"
+            value={priorityFilter}
+            onChange={(event) => setPriorityFilter(normalizePriority(event.target.value) ?? "")}
+          >
+            <option value="">{text.allPriorities}</option>
+            {Object.entries(priorityLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="cell-input"
+            value={stageFilter}
+            onChange={(event) => onStageFilterChange(normalizeStage(event.target.value) ?? "")}
+          >
+            <option value="">{text.allMetrics}</option>
+            {Object.entries(stageLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filters-row filters-row-secondary">
+          <select
+            className="cell-input"
+            value={sortMode}
+            onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
+          >
+            <option value="">{text.noSorting}</option>
+            <option value="priority_desc">{text.priorityHighToLow}</option>
+            <option value="priority_asc">{text.priorityLowToHigh}</option>
+          </select>
           <button
             className="ghost-button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isImporting}
             type="button"
+            onClick={() => {
+              setSearchValue("");
+              setProjectFilter("");
+              setPriorityFilter("");
+              setSortMode("");
+              onStageFilterChange("");
+            }}
           >
-            {isImporting ? text.importInProgress : text.importFromExcel}
-          </button>
-          <button className="primary-button" onClick={onAdd} type="button">
-            {text.addTask}
+            {text.clearFilters}
           </button>
         </div>
+      </div>
+
+      <div className="toolbar tasks-toolbar">
+        <input
+          ref={fileInputRef}
+          accept=".xlsx,.xls"
+          className="hidden-file-input"
+          type="file"
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            if (!file) {
+              return;
+            }
+
+            await onImportFile(file);
+            event.target.value = "";
+          }}
+        />
+        <input
+          ref={scenarioFileInputRef}
+          accept=".xlsx,.xls"
+          className="hidden-file-input"
+          type="file"
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            if (!file) {
+              return;
+            }
+
+            await onImportScenario(file);
+            event.target.value = "";
+          }}
+        />
+        <button className="ghost-button" onClick={() => onSetAllActive(true)} type="button">
+          {text.selectAll}
+        </button>
+        <button className="ghost-button" onClick={() => onSetAllActive(false)} type="button">
+          {text.deselectAll}
+        </button>
+        <button className="ghost-button" onClick={onDownloadScenario} type="button">
+          {text.saveScenario}
+        </button>
+        <button
+          className="ghost-button"
+          onClick={() => scenarioFileInputRef.current?.click()}
+          disabled={activeImport !== null}
+          type="button"
+        >
+          {activeImport === "scenario" ? text.importInProgress : text.loadScenario}
+        </button>
+        <button className="ghost-button" onClick={onDownloadTemplate} type="button">
+          {text.downloadTemplate}
+        </button>
+        <button
+          className="ghost-button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={activeImport !== null}
+          type="button"
+        >
+          {activeImport === "tasks" ? text.importInProgress : text.importFromExcel}
+        </button>
+        <button className="primary-button" onClick={onAdd} type="button">
+          {text.addTask}
+        </button>
       </div>
 
       {importState ? (
         <div className={`toolbar-status ${importState.type}`}>{importState.message}</div>
       ) : null}
-
-      <div className="filters-row">
-        <input
-          className="cell-input"
-          placeholder={text.taskSearchPlaceholder}
-          value={searchValue}
-          onChange={(event) => setSearchValue(event.target.value)}
-        />
-        <select
-          className="cell-input"
-          value={projectFilter}
-          onChange={(event) => setProjectFilter(event.target.value)}
-        >
-          <option value="">{text.allProjects}</option>
-          {projectOptions.map((project) => (
-            <option key={project} value={project}>
-              {project}
-            </option>
-          ))}
-        </select>
-        <select
-          className="cell-input"
-          value={priorityFilter}
-          onChange={(event) => setPriorityFilter(normalizePriority(event.target.value) ?? "")}
-        >
-          <option value="">{text.allPriorities}</option>
-          {Object.entries(priorityLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="cell-input"
-          value={stageFilter}
-          onChange={(event) => onStageFilterChange(normalizeStage(event.target.value) ?? "")}
-        >
-          <option value="">{text.allMetrics}</option>
-          {Object.entries(stageLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="cell-input"
-          value={sortMode}
-          onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
-        >
-          <option value="">{text.noSorting}</option>
-          <option value="priority_desc">{text.priorityHighToLow}</option>
-          <option value="priority_asc">{text.priorityLowToHigh}</option>
-        </select>
-        <button
-          className="ghost-button"
-          type="button"
-          onClick={() => {
-            setSearchValue("");
-            setProjectFilter("");
-            setPriorityFilter("");
-            setSortMode("");
-            onStageFilterChange("");
-          }}
-        >
-          {text.clearFilters}
-        </button>
-      </div>
 
       <div className="filters-summary">
         {text.shownTasks}: {filteredTasks.length} / {tasks.length}

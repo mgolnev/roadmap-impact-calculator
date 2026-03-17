@@ -9,6 +9,7 @@ type StoreState = {
   tasks: Task[];
   trafficChangePercent: number;
   locale: Locale;
+  setBaseline: (baseline: BaselineInput) => void;
   updateBaseline: <K extends keyof BaselineInput>(key: K, value: number) => void;
   resetBaseline: () => void;
   updateTask: <K extends keyof Task>(id: string, key: K, value: Task[K]) => void;
@@ -44,6 +45,12 @@ export const useCalculatorStore = create<StoreState>()(
       tasks: DEFAULT_TASKS,
       trafficChangePercent: 0,
       locale: "ru",
+      setBaseline: (baseline) =>
+        set({
+          baseline: {
+            ...baseline,
+          },
+        }),
       updateBaseline: (key, value) =>
         set((state) => ({
           baseline: {
