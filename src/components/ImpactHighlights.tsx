@@ -18,7 +18,7 @@ type ImpactHighlightsProps = {
   projectedAnnual: AnnualFunnel;
   fullyImplementedRates: FunnelRates;
   fullyImplementedOrderToSessions: number;
-  topTasks: Array<{ taskName: string; value: number }>;
+  topTasks: Array<{ projectName: string; value: number; taskCount: number }>;
 };
 
 const deltaText = (current: number, base: number, money = false) => {
@@ -114,8 +114,10 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
         <div className="top-tasks-list">
           {props.topTasks.length > 0 ? (
             props.topTasks.map((task, index) => (
-              <div className="top-task-item" key={task.taskName}>
-                <span>{index + 1}. {task.taskName}</span>
+              <div className="top-task-item" key={task.projectName}>
+                <span>
+                  {index + 1}. {task.projectName} ({task.taskCount} {text.tasksShort})
+                </span>
                 <strong>{formatCurrency(task.value)}</strong>
               </div>
             ))

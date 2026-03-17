@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { getImpactTypeLabels, getMonthLabel, getStageLabels, getText } from "@/lib/i18n";
@@ -11,9 +11,13 @@ type TasksTableProps = {
   locale: Locale;
   tasks: Task[];
   taskMetrics: Record<string, TaskValueMetrics>;
+  importState: { type: "success" | "error"; message: string } | null;
+  isImporting: boolean;
   onUpdate: <K extends keyof Task>(id: string, key: K, value: Task[K]) => void;
   onSetAllActive: (active: boolean) => void;
   onAdd: () => void;
+  onDownloadTemplate: () => void;
+  onImportFile: (file: File) => Promise<void>;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
 };
@@ -127,13 +131,18 @@ export function TasksTable({
   locale,
   tasks,
   taskMetrics,
+  importState,
+  isImporting,
   onUpdate,
   onSetAllActive,
   onAdd,
+  onDownloadTemplate,
+  onImportFile,
   onRemove,
   onDuplicate,
 }: TasksTableProps) {
   const [isDetailedView, setIsDetailedView] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const text = getText(locale);
   const activeTasksCount = useMemo(() => tasks.filter((task) => task.active).length, [tasks]);
   const projectGroups = useMemo(() => {
@@ -180,6 +189,21 @@ export function TasksTable({
           <p>{text.tasksDescription}</p>
         </div>
         <div className="toolbar">
+          <input
+            ref={fileInputRef}
+            accept=".xlsx,.xls"
+            className="hidden-file-input"
+            type="file"
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              if (!file) {
+                return;
+              }
+
+              await onImportFile(file);
+              event.target.value = "";
+            }}
+          />
           <button
             className="ghost-button"
             onClick={() => setIsDetailedView((value) => !value)}
@@ -193,11 +217,26 @@ export function TasksTable({
           <button className="ghost-button" onClick={() => onSetAllActive(false)} type="button">
             {text.deselectAll}
           </button>
+          <button className="ghost-button" onClick={onDownloadTemplate} type="button">
+            {text.downloadTemplate}
+          </button>
+          <button
+            className="ghost-button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+            type="button"
+          >
+            {isImporting ? text.importInProgress : text.importFromExcel}
+          </button>
           <button className="primary-button" onClick={onAdd} type="button">
             {text.addTask}
           </button>
         </div>
       </div>
+
+      {importState ? (
+        <div className={`toolbar-status ${importState.type}`}>{importState.message}</div>
+      ) : null}
 
       {isDetailedView ? (
         <div className="table-wrap">

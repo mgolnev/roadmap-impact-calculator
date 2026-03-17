@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 import { AnnualFunnelTable } from "@/components/AnnualFunnelTable";
@@ -10,6 +10,7 @@ import { MonthlyModelTable } from "@/components/MonthlyModelTable";
 import { TasksTable } from "@/components/TasksTable";
 import { getText } from "@/lib/i18n";
 import { buildRoadmapImpactWorkbook } from "@/lib/export";
+import { buildTaskImportWorkbook, parseTaskImportWorkbook } from "@/lib/task-template";
 import {
   getFullyImplementedRates,
   getTaskValueMetrics,
@@ -29,12 +30,15 @@ export default function HomePage() {
     updateBaseline,
     resetBaseline,
     updateTask,
+    setTasks,
     setAllTasksActive,
     addTask,
     removeTask,
     duplicateTask,
   } = useCalculatorStore();
   const text = getText(locale);
+  const [importState, setImportState] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const baselineSimulation = useMemo(
     () => simulateScenario(baseline, [], getTrafficMultiplier(trafficChangePercent)),
@@ -54,15 +58,22 @@ export default function HomePage() {
   );
   const topTasks = useMemo(
     () =>
-      tasks
-        .filter((task) => task.active)
-        .map((task) => ({
-          taskName: task.taskName,
-          value: taskMetrics[task.id]?.incrementalCurrent ?? 0,
-        }))
+      Array.from(
+        tasks
+          .filter((task) => task.active)
+          .reduce((acc, task) => {
+            const key = task.project.trim() || (locale === "ru" ? "Без проекта" : "No project");
+            const current = acc.get(key) ?? { projectName: key, value: 0, taskCount: 0 };
+            current.value += taskMetrics[task.id]?.incrementalCurrent ?? 0;
+            current.taskCount += 1;
+            acc.set(key, current);
+            return acc;
+          }, new Map<string, { projectName: string; value: number; taskCount: number }>())
+          .values(),
+      )
         .sort((a, b) => b.value - a.value)
         .slice(0, 5),
-    [taskMetrics, tasks],
+    [locale, taskMetrics, tasks],
   );
 
   const exportWorkbook = () => {
@@ -74,6 +85,40 @@ export default function HomePage() {
       taskMetrics,
     });
     XLSX.writeFile(workbook, "roadmap-impact-calculator-2026.xlsx");
+  };
+
+  const exportTaskTemplate = () => {
+    const workbook = buildTaskImportWorkbook({ locale, tasks });
+    XLSX.writeFile(workbook, locale === "ru" ? "шаблон-импорта-roadmap.xlsx" : "roadmap-task-import-template.xlsx");
+    setImportState(null);
+  };
+
+  const importTasksFromWorkbook = async (file: File) => {
+    setIsImporting(true);
+    setImportState(null);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const imported = parseTaskImportWorkbook(buffer, locale);
+      setTasks(imported.tasks);
+      setImportState({
+        type: "success",
+        message:
+          locale === "ru"
+            ? `${text.importSuccess} Импортировано задач: ${imported.tasks.length}.`
+            : `${text.importSuccess} Imported tasks: ${imported.tasks.length}.`,
+      });
+    } catch (error) {
+      setImportState({
+        type: "error",
+        message:
+          error instanceof Error
+            ? `${text.importError}\n${error.message}`
+            : text.importError,
+      });
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -130,9 +175,13 @@ export default function HomePage() {
         locale={locale}
         tasks={tasks}
         taskMetrics={taskMetrics}
+        importState={importState}
+        isImporting={isImporting}
         onUpdate={updateTask}
         onSetAllActive={setAllTasksActive}
         onAdd={addTask}
+        onDownloadTemplate={exportTaskTemplate}
+        onImportFile={importTasksFromWorkbook}
         onRemove={removeTask}
         onDuplicate={duplicateTask}
       />

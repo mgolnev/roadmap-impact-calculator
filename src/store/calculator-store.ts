@@ -12,6 +12,7 @@ type StoreState = {
   updateBaseline: <K extends keyof BaselineInput>(key: K, value: number) => void;
   resetBaseline: () => void;
   updateTask: <K extends keyof Task>(id: string, key: K, value: Task[K]) => void;
+  setTasks: (tasks: Task[]) => void;
   setAllTasksActive: (active: boolean) => void;
   addTask: () => void;
   removeTask: (id: string) => void;
@@ -61,6 +62,7 @@ export const useCalculatorStore = create<StoreState>()(
               : task,
           ),
         })),
+      setTasks: (tasks) => set({ tasks }),
       setAllTasksActive: (active) =>
         set((state) => ({
           tasks: state.tasks.map((task) => ({
