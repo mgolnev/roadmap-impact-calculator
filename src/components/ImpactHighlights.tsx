@@ -24,6 +24,13 @@ type ImpactHighlightsProps = {
   topTasks: Array<{ projectName: string; value: number; taskCount: number }>;
 };
 
+const deltaClass = (current: number, base: number) => {
+  const delta = current - base;
+  if (delta > 0) return "delta-positive";
+  if (delta < 0) return "delta-negative";
+  return "";
+};
+
 const deltaText = (current: number, base: number, money = false) => {
   const delta = current - base;
   const pct = base > 0 ? delta / base : 0;
@@ -202,6 +209,24 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
         </section>
 
         <section className="impact-summary-section">
+          <div className="impact-summary-title">{text.baseTitle}</div>
+          <div className="insight-grid">
+            <div className="insight-card">
+              <span>{text.baseGrossOrders}</span>
+              <strong>{formatNumber(props.baselineOrders)}</strong>
+            </div>
+            <div className="insight-card">
+              <span>{text.baseGrossRevenue}</span>
+              <strong>{formatCurrency(props.baselineGross)}</strong>
+            </div>
+            <div className="insight-card">
+              <span>{text.baseNetRevenue}</span>
+              <strong>{formatCurrency(props.baselineNet)}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="impact-summary-section">
           <div className="impact-summary-title">{text.afterTasksTitle}</div>
           <div className="insight-grid">
             <div className="insight-card">
@@ -222,15 +247,15 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
         <section className="impact-summary-section">
           <div className="impact-summary-title">{text.deltaToBaseTitle}</div>
           <div className="insight-grid">
-            <div className="insight-card">
+            <div className={`insight-card ${deltaClass(props.projectedOrders, props.baselineOrders)}`}>
               <span>{text.deltaOrders}</span>
               <strong>{deltaText(props.projectedOrders, props.baselineOrders)}</strong>
             </div>
-            <div className="insight-card">
+            <div className={`insight-card ${deltaClass(props.projectedGross, props.baselineGross)}`}>
               <span>{text.deltaGrossRevenue}</span>
               <strong>{deltaText(props.projectedGross, props.baselineGross, true)}</strong>
             </div>
-            <div className="insight-card">
+            <div className={`insight-card ${deltaClass(props.projectedNet, props.baselineNet)}`}>
               <span>{text.deltaNetRevenue}</span>
               <strong>{deltaText(props.projectedNet, props.baselineNet, true)}</strong>
             </div>
@@ -256,7 +281,9 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
                   <td>{row.label}</td>
                   <td>{row.format(row.base)}</td>
                   <td>{row.format(row.projected)}</td>
-                  <td>{deltaByFormatter(row.projected, row.base, row.format)}</td>
+                  <td className={deltaClass(row.projected, row.base)}>
+                    {deltaByFormatter(row.projected, row.base, row.format)}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -266,21 +293,20 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
 
       <div className="top-tasks">
         <div className="top-tasks-header">
-          <div className="top-tasks-title">{text.topTasksTitle}</div>
-          <div className="top-tasks-subtitle">
-            {text.totalTasksInProjects}: {props.topTasks.reduce((acc, task) => acc + task.taskCount, 0)}
+          <div className="top-tasks-title">
+            {text.topTasksTitle} ({props.topTasks.reduce((acc, task) => acc + task.taskCount, 0)} {text.tasksShort})
           </div>
         </div>
+        <div className="top-tasks-subtitle">{text.topTasksHint}</div>
         <div className="top-tasks-list">
           {props.topTasks.length > 0 ? (
             props.topTasks.map((task, index) => (
-              <div className="top-task-item" key={task.projectName}>
+              <div className={`top-task-item ${index === 0 ? "top-task-leader" : ""}`} key={task.projectName}>
                 <span>
-                  {index + 1}. {task.projectName} ({task.taskCount} {text.tasksShort})
+                  <span className="top-task-rank">{index + 1}</span>
+                  {task.projectName} ({task.taskCount} {text.tasksShort})
                 </span>
-                <strong>
-                  {text.addedBenefit}: {formatCurrency(task.value)}
-                </strong>
+                <strong className={task.value >= 0 ? "delta-positive" : "delta-negative"}>{formatCurrency(task.value)}</strong>
               </div>
             ))
           ) : (
@@ -338,10 +364,10 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
                     <td>{row.format(row.base)}</td>
                     <td>{row.format(row.full)}</td>
                     <td>{row.format(row.year)}</td>
-                    <td>
+                    <td className={deltaClass(row.full, row.base)}>
                       {deltaByFormatter(row.full, row.base, row.format)}
                     </td>
-                    <td>
+                    <td className={deltaClass(row.year, row.base)}>
                       {deltaByFormatter(row.year, row.base, row.format)}
                     </td>
                   </tr>

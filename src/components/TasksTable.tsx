@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { getImpactTypeLabels, getMonthLabel, getPriorityLabels, getStageLabels, getText } from "@/lib/i18n";
-import { AdjustableStage, Locale, Priority, Task, TaskValueMetrics } from "@/lib/types";
+import { AdjustableStage, ImpactType, Locale, Priority, Task, TaskValueMetrics } from "@/lib/types";
 import { normalizeImpactType, normalizePriority, normalizeStage } from "@/store/calculator-store";
 
 type TasksTableProps = {
@@ -50,6 +50,19 @@ const parseImpactInputValue = (
   }
 
   return rawValue;
+};
+
+const SHORT_IMPACT_TYPE_LABELS: Record<Locale, Record<ImpactType, string>> = {
+  ru: {
+    relative_percent: "%",
+    absolute_pp: "п.п.",
+    absolute_value: "abs",
+  },
+  en: {
+    relative_percent: "%",
+    absolute_pp: "p.p.",
+    absolute_value: "abs",
+  },
 };
 
 const formatEditableNumber = (value: number, maximumFractionDigits = 2) => {
@@ -158,23 +171,30 @@ function ImpactEditor({
           </option>
         ))}
       </select>
-      <select
-        className="cell-input"
-        value={typeValue ?? ""}
-        onChange={(event) => onUpdate(task.id, typeKey, normalizeImpactType(event.target.value))}
-      >
-        <option value="">{text.typePlaceholder}</option>
-        {impactOptions.map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
-      <EditableImpactInput
-        type={typeValue}
-        value={impactValue}
-        onCommit={(nextValue) => onUpdate(task.id, valueKey, nextValue)}
-      />
+      <div className="impact-value-group">
+        <EditableImpactInput
+          type={typeValue}
+          value={impactValue}
+          onCommit={(nextValue) => onUpdate(task.id, valueKey, nextValue)}
+        />
+        <select
+          className="cell-input impact-type-select"
+          title={
+            typeValue
+              ? impactOptions.find(([value]) => value === typeValue)?.[1] ?? text.typePlaceholder
+              : text.typePlaceholder
+          }
+          value={typeValue ?? ""}
+          onChange={(event) => onUpdate(task.id, typeKey, normalizeImpactType(event.target.value))}
+        >
+          <option value="">{text.typePlaceholder}</option>
+          {(Object.keys(SHORT_IMPACT_TYPE_LABELS[locale]) as ImpactType[]).map((value) => (
+            <option key={value} value={value}>
+              {SHORT_IMPACT_TYPE_LABELS[locale][value]}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 }
@@ -403,7 +423,7 @@ export function TasksTable({
         <table className="matrix-table tasks-table">
           <thead>
             <tr>
-              <th className="sticky-col sticky-col-1">{text.enabled}</th>
+              <th className="sticky-col sticky-col-1 checkbox-col">{text.enabled}</th>
               <th className="sticky-col sticky-col-2">{text.project}</th>
               <th className="sticky-col sticky-col-3 wide-sticky">{text.task}</th>
               <th>{text.priority}</th>
@@ -423,9 +443,10 @@ export function TasksTable({
               const metrics = taskMetrics[task.id];
 
               return (
-                <tr key={task.id}>
-                  <td className="sticky-col sticky-col-1">
+                <tr key={task.id} className={task.active ? "" : "task-row-inactive"}>
+                  <td className="sticky-col sticky-col-1 checkbox-cell">
                     <input
+                      className="task-checkbox"
                       checked={task.active}
                       onChange={(event) => onUpdate(task.id, "active", event.target.checked)}
                       type="checkbox"
@@ -449,7 +470,7 @@ export function TasksTable({
                   </td>
                   <td>
                     <select
-                      className="cell-input"
+                      className={`cell-input priority-select priority-select-${task.priority}`}
                       value={task.priority}
                       onChange={(event) =>
                         onUpdate(task.id, "priority", normalizePriority(event.target.value) ?? "p2")
