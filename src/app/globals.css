@@ -276,6 +276,42 @@ h2 {
   margin-top: 16px;
 }
 
+.insight-grid.single-column {
+  grid-template-columns: 1fr;
+}
+
+.impact-summary-grid {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.impact-summary-section {
+  display: grid;
+  gap: 10px;
+}
+
+.impact-summary-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.filters-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.5fr) repeat(2, minmax(180px, 1fr)) auto;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.filters-summary {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .flow-grid {
   grid-template-columns: repeat(6, minmax(0, 1fr));
   margin-top: 16px;
@@ -501,6 +537,24 @@ h2 {
   margin-bottom: 12px;
 }
 
+.top-tasks-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.top-tasks-header .top-tasks-title {
+  margin-bottom: 0;
+}
+
+.top-tasks-subtitle {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .top-tasks-list {
   display: grid;
   gap: 10px;
@@ -514,6 +568,29 @@ h2 {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface-muted);
+}
+
+.metric-filter-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.metric-filter-button {
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.metric-filter-button.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
 }
 
 .project-groups {
@@ -623,6 +700,10 @@ h2 {
   .project-task-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .filters-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
@@ -645,7 +726,8 @@ h2 {
   .project-group-header,
   .project-group-metrics,
   .project-task-main,
-  .project-task-grid {
+  .project-task-grid,
+  .filters-row {
     grid-template-columns: 1fr;
     display: grid;
   }

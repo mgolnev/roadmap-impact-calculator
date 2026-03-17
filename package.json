@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/portable-server.cjs out --open",
+    "portable:serve": "node scripts/portable-server.cjs out --open",
+    "portable:build": "npm run build && node scripts/build-portable.mjs",
     "lint": "eslint .",
     "test": "vitest run"
   },
@@ -27,6 +29,7 @@
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.1.6",
+    "pkg": "^5.8.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.0"
   }

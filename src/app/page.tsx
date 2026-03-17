@@ -17,6 +17,7 @@ import {
   getTrafficMultiplier,
   simulateScenario,
 } from "@/lib/calculations";
+import { AdjustableStage } from "@/lib/types";
 import { useCalculatorStore } from "@/store/calculator-store";
 
 export default function HomePage() {
@@ -39,6 +40,7 @@ export default function HomePage() {
   const text = getText(locale);
   const [importState, setImportState] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [selectedStageFilter, setSelectedStageFilter] = useState<AdjustableStage | "">("");
 
   const baselineSimulation = useMemo(
     () => simulateScenario(baseline, [], getTrafficMultiplier(trafficChangePercent)),
@@ -56,6 +58,18 @@ export default function HomePage() {
     () => getFullyImplementedRates(baseline, tasks),
     [baseline, tasks],
   );
+  const fullyImplementedSimulation = useMemo(
+    () =>
+      simulateScenario(
+        baseline,
+        tasks.map((task) => ({
+          ...task,
+          releaseMonth: 1,
+        })),
+        getTrafficMultiplier(trafficChangePercent),
+      ),
+    [baseline, tasks, trafficChangePercent],
+  );
   const topTasks = useMemo(
     () =>
       Array.from(
@@ -72,7 +86,7 @@ export default function HomePage() {
           .values(),
       )
         .sort((a, b) => b.value - a.value)
-        .slice(0, 5),
+    ,
     [locale, taskMetrics, tasks],
   );
 
@@ -157,6 +171,11 @@ export default function HomePage() {
 
       <ImpactHighlights
         locale={locale}
+        tasks={tasks}
+        selectedStageFilter={selectedStageFilter}
+        onSelectStageFilter={(stage) =>
+          setSelectedStageFilter((current) => (current === stage ? "" : stage))
+        }
         trafficChangePercent={trafficChangePercent}
         baselineGross={baselineSimulation.annual.grossRevenue}
         projectedGross={projectedSimulation.annual.grossRevenue}
@@ -166,8 +185,8 @@ export default function HomePage() {
         projectedOrders={projectedSimulation.annual.orders}
         baselineAnnual={baselineSimulation.annual}
         projectedAnnual={projectedSimulation.annual}
+        fullyImplementedAnnual={fullyImplementedSimulation.annual}
         fullyImplementedRates={fullyImplementedRates.rates}
-        fullyImplementedOrderToSessions={fullyImplementedRates.orderToSessions}
         topTasks={topTasks}
       />
 
@@ -177,7 +196,9 @@ export default function HomePage() {
         taskMetrics={taskMetrics}
         importState={importState}
         isImporting={isImporting}
+        stageFilter={selectedStageFilter}
         onUpdate={updateTask}
+        onStageFilterChange={setSelectedStageFilter}
         onSetAllActive={setAllTasksActive}
         onAdd={addTask}
         onDownloadTemplate={exportTaskTemplate}

@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { getImpactTypeLabels, getMonthLabel, getStageLabels, getText } from "@/lib/i18n";
-import { Locale, Task, TaskValueMetrics } from "@/lib/types";
+import { AdjustableStage, Locale, Task, TaskValueMetrics } from "@/lib/types";
 import { normalizeImpactType, normalizeStage } from "@/store/calculator-store";
 
 type TasksTableProps = {
@@ -13,7 +13,9 @@ type TasksTableProps = {
   taskMetrics: Record<string, TaskValueMetrics>;
   importState: { type: "success" | "error"; message: string } | null;
   isImporting: boolean;
+  stageFilter: AdjustableStage | "";
   onUpdate: <K extends keyof Task>(id: string, key: K, value: Task[K]) => void;
+  onStageFilterChange: (stage: AdjustableStage | "") => void;
   onSetAllActive: (active: boolean) => void;
   onAdd: () => void;
   onDownloadTemplate: () => void;
@@ -67,6 +69,77 @@ const parseImpactInputValue = (
   return rawValue;
 };
 
+const formatEditableNumber = (value: number, maximumFractionDigits = 2) => {
+  if (!Number.isFinite(value)) {
+    return "";
+  }
+
+  return new Intl.NumberFormat("ru-RU", {
+    useGrouping: false,
+    maximumFractionDigits,
+  }).format(value);
+};
+
+const parseEditableNumber = (value: string) => {
+  const normalized = value.replace(/\s+/g, "").replace(",", ".");
+
+  if (!normalized || normalized === "-" || normalized === "." || normalized === "-.") {
+    return null;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+function EditableImpactInput({
+  type,
+  value,
+  onCommit,
+}: {
+  type: Task["impact1Type"] | Task["impact2Type"];
+  value: number;
+  onCommit: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState(() => formatEditableNumber(formatImpactInputValue(type, value)));
+  const [isFocused, setIsFocused] = useState(false);
+
+  const commitValue = () => {
+    const parsed = parseEditableNumber(draft);
+
+    if (parsed === null) {
+      setDraft(formatEditableNumber(formatImpactInputValue(type, value)));
+      return;
+    }
+
+    const nextValue = parseImpactInputValue(type, parsed);
+    onCommit(nextValue);
+    setDraft(formatEditableNumber(formatImpactInputValue(type, nextValue)));
+  };
+
+  return (
+    <input
+      className="cell-input small-input"
+      inputMode="decimal"
+      type="text"
+      value={isFocused ? draft : formatEditableNumber(formatImpactInputValue(type, value))}
+      onFocus={() => {
+        setDraft(formatEditableNumber(formatImpactInputValue(type, value)));
+        setIsFocused(true);
+      }}
+      onBlur={() => {
+        setIsFocused(false);
+        commitValue();
+      }}
+      onChange={(event) => setDraft(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
+
 function ImpactEditor({
   locale,
   task,
@@ -114,14 +187,10 @@ function ImpactEditor({
           </option>
         ))}
       </select>
-      <input
-        className="cell-input small-input"
-        type="number"
-        step={typeValue === "absolute_value" ? "1" : "0.1"}
-        value={formatImpactInputValue(typeValue, impactValue)}
-        onChange={(event) =>
-          onUpdate(task.id, valueKey, parseImpactInputValue(typeValue, Number(event.target.value)))
-        }
+      <EditableImpactInput
+        type={typeValue}
+        value={impactValue}
+        onCommit={(nextValue) => onUpdate(task.id, valueKey, nextValue)}
       />
     </div>
   );
@@ -133,7 +202,9 @@ export function TasksTable({
   taskMetrics,
   importState,
   isImporting,
+  stageFilter,
   onUpdate,
+  onStageFilterChange,
   onSetAllActive,
   onAdd,
   onDownloadTemplate,
@@ -142,9 +213,33 @@ export function TasksTable({
   onDuplicate,
 }: TasksTableProps) {
   const [isDetailedView, setIsDetailedView] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const text = getText(locale);
-  const activeTasksCount = useMemo(() => tasks.filter((task) => task.active).length, [tasks]);
+  const stageLabels = getStageLabels(locale);
+  const projectOptions = useMemo(
+    () => Array.from(new Set(tasks.map((task) => task.project.trim() || text.noProject))).sort(),
+    [tasks, text.noProject],
+  );
+  const filteredTasks = useMemo(() => {
+    const query = searchValue.trim().toLowerCase();
+
+    return tasks.filter((task) => {
+      const projectName = task.project.trim() || text.noProject;
+      const matchesProject = !projectFilter || projectName === projectFilter;
+      const matchesStage =
+        !stageFilter || task.stage1 === stageFilter || task.stage2 === stageFilter;
+      const haystack = `${projectName} ${task.taskName} ${task.comment}`.toLowerCase();
+      const matchesSearch = !query || haystack.includes(query);
+
+      return matchesProject && matchesStage && matchesSearch;
+    });
+  }, [projectFilter, searchValue, stageFilter, tasks, text.noProject]);
+  const activeTasksCount = useMemo(
+    () => filteredTasks.filter((task) => task.active).length,
+    [filteredTasks],
+  );
   const projectGroups = useMemo(() => {
     const groups: Array<{
       project: string;
@@ -155,7 +250,7 @@ export function TasksTable({
     }> = [];
     const map = new Map<string, number>();
 
-    tasks.forEach((task) => {
+    filteredTasks.forEach((task) => {
       const key = task.project.trim() || text.noProject;
       const existingIndex = map.get(key);
 
@@ -179,7 +274,7 @@ export function TasksTable({
     });
 
     return groups;
-  }, [taskMetrics, tasks, text.noProject]);
+  }, [filteredTasks, taskMetrics, text.noProject]);
 
   return (
     <section className="section-card">
@@ -238,6 +333,55 @@ export function TasksTable({
         <div className={`toolbar-status ${importState.type}`}>{importState.message}</div>
       ) : null}
 
+      <div className="filters-row">
+        <input
+          className="cell-input"
+          placeholder={text.taskSearchPlaceholder}
+          value={searchValue}
+          onChange={(event) => setSearchValue(event.target.value)}
+        />
+        <select
+          className="cell-input"
+          value={projectFilter}
+          onChange={(event) => setProjectFilter(event.target.value)}
+        >
+          <option value="">{text.allProjects}</option>
+          {projectOptions.map((project) => (
+            <option key={project} value={project}>
+              {project}
+            </option>
+          ))}
+        </select>
+        <select
+          className="cell-input"
+          value={stageFilter}
+          onChange={(event) => onStageFilterChange(normalizeStage(event.target.value) ?? "")}
+        >
+          <option value="">{text.allMetrics}</option>
+          {Object.entries(stageLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <button
+          className="ghost-button"
+          type="button"
+          onClick={() => {
+            setSearchValue("");
+            setProjectFilter("");
+            onStageFilterChange("");
+          }}
+        >
+          {text.clearFilters}
+        </button>
+      </div>
+
+      <div className="filters-summary">
+        {text.shownTasks}: {filteredTasks.length} / {tasks.length}
+        {stageFilter ? ` • ${text.filterByMetric}: ${stageLabels[stageFilter]}` : ""}
+      </div>
+
       {isDetailedView ? (
         <div className="table-wrap">
           <table className="matrix-table tasks-table">
@@ -253,15 +397,12 @@ export function TasksTable({
                 <th>{text.standalone}</th>
                 <th>{text.incremental}</th>
                 <th>{text.valuePerMonth}</th>
-                <th>{text.value15}</th>
-                <th>{text.value20}</th>
-                <th>{text.value30}</th>
                 <th>{text.comment}</th>
                 <th>{text.actions}</th>
               </tr>
             </thead>
             <tbody>
-              {tasks.map((task) => {
+              {filteredTasks.map((task) => {
                 const metrics = taskMetrics[task.id];
 
                 return (
@@ -312,9 +453,6 @@ export function TasksTable({
                     <td>{formatCurrency(metrics?.standaloneBase ?? 0)}</td>
                     <td>{formatCurrency(metrics?.incrementalCurrent ?? 0)}</td>
                     <td>{formatCurrency(metrics?.valuePerMonth ?? 0)}</td>
-                    <td>{formatCurrency(metrics?.standalone15 ?? 0)}</td>
-                    <td>{formatCurrency(metrics?.standalone20 ?? 0)}</td>
-                    <td>{formatCurrency(metrics?.standalone30 ?? 0)}</td>
                     <td>
                       <textarea
                         className="cell-input text-area"
@@ -341,12 +479,9 @@ export function TasksTable({
                 <td className="sticky-col sticky-col-1" colSpan={7}>
                   {text.totalByTasks}
                 </td>
-                <td>{formatCurrency(tasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.standaloneBase ?? 0), 0))}</td>
-                <td>{formatCurrency(tasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.incrementalCurrent ?? 0), 0))}</td>
-                <td>{formatCurrency(tasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.valuePerMonth ?? 0), 0))}</td>
-                <td>{formatCurrency(tasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.standalone15 ?? 0), 0))}</td>
-                <td>{formatCurrency(tasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.standalone20 ?? 0), 0))}</td>
-                <td>{formatCurrency(tasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.standalone30 ?? 0), 0))}</td>
+                <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.standaloneBase ?? 0), 0))}</td>
+                <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.incrementalCurrent ?? 0), 0))}</td>
+                <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.valuePerMonth ?? 0), 0))}</td>
                 <td colSpan={2}>{formatNumber(activeTasksCount)} {text.activeTasks}</td>
               </tr>
             </tfoot>
@@ -354,7 +489,8 @@ export function TasksTable({
         </div>
       ) : (
         <div className="project-groups">
-          {projectGroups.map((group) => (
+          {projectGroups.length > 0 ? (
+            projectGroups.map((group) => (
             <details className="project-group" key={group.project} open>
               <summary className="project-group-header">
                 <div>
@@ -420,7 +556,10 @@ export function TasksTable({
                 })}
               </div>
             </details>
-          ))}
+            ))
+          ) : (
+            <div className="toolbar-status">{text.noTasksForFilter}</div>
+          )}
         </div>
       )}
     </section>
