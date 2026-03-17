@@ -113,3 +113,45 @@ export type TaskValueMetrics = {
   incrementalCurrent: number;
   valuePerMonth: number;
 };
+
+export type PhaseStatus = "not_started" | "in_progress" | "done" | "blocked" | "skipped";
+
+export type PhaseName =
+  | "prd"
+  | "design"
+  | "analytics"
+  | "development"
+  | "qa"
+  | "ab_test"
+  | "rollout"
+  | "results";
+
+export const PHASE_LIST: PhaseName[] = [
+  "prd",
+  "design",
+  "analytics",
+  "development",
+  "qa",
+  "ab_test",
+  "rollout",
+  "results",
+];
+
+export const PHASE_STATUS_CYCLE: PhaseStatus[] = [
+  "not_started",
+  "in_progress",
+  "done",
+  "blocked",
+  "skipped",
+];
+
+export type TaskPMData = {
+  startDate: string;
+  endDate: string;
+  manager: string;
+  managerGJ: string;
+  blocker: string;
+  needsAbTest: boolean;
+  devCostHours: number;
+  phases: Record<PhaseName, PhaseStatus>;
+};

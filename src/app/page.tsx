@@ -7,6 +7,7 @@ import { AnnualFunnelTable } from "@/components/AnnualFunnelTable";
 import { BaselineTable } from "@/components/BaselineTable";
 import { ImpactHighlights } from "@/components/ImpactHighlights";
 import { MonthlyModelTable } from "@/components/MonthlyModelTable";
+import { ProjectTracker } from "@/components/ProjectTracker";
 import { TasksTable } from "@/components/TasksTable";
 import { getText } from "@/lib/i18n";
 import { buildRoadmapImpactWorkbook } from "@/lib/export";
@@ -43,6 +44,7 @@ export default function HomePage() {
   const [importState, setImportState] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [activeImport, setActiveImport] = useState<"tasks" | "scenario" | null>(null);
   const [selectedStageFilter, setSelectedStageFilter] = useState<AdjustableStage | "">("");
+  const [activeTab, setActiveTab] = useState<"business" | "pm">("business");
 
   const baselineSimulation = useMemo(
     () => simulateScenario(baseline, [], getTrafficMultiplier(trafficChangePercent)),
@@ -219,61 +221,84 @@ export default function HomePage() {
         </div>
       </section>
 
-      <BaselineTable locale={locale} baseline={baseline} onChange={updateBaseline} onReset={resetBaseline} />
+      <div className="tab-bar">
+        <button
+          className={`tab-button ${activeTab === "business" ? "tab-active" : ""}`}
+          type="button"
+          onClick={() => setActiveTab("business")}
+        >
+          {text.tabBusiness}
+        </button>
+        <button
+          className={`tab-button ${activeTab === "pm" ? "tab-active" : ""}`}
+          type="button"
+          onClick={() => setActiveTab("pm")}
+        >
+          {text.tabPM}
+        </button>
+      </div>
 
-      <ImpactHighlights
-        locale={locale}
-        tasks={tasks}
-        selectedStageFilter={selectedStageFilter}
-        onSelectStageFilter={(stage) =>
-          setSelectedStageFilter((current) => (current === stage ? "" : stage))
-        }
-        trafficChangePercent={trafficChangePercent}
-        baselineGross={baselineSimulation.annual.grossRevenue}
-        projectedGross={projectedSimulation.annual.grossRevenue}
-        baselineNet={baselineSimulation.annual.netRevenue}
-        projectedNet={projectedSimulation.annual.netRevenue}
-        baselineOrders={baselineSimulation.annual.orders}
-        projectedOrders={projectedSimulation.annual.orders}
-        baselineAnnual={baselineSimulation.annual}
-        projectedAnnual={projectedSimulation.annual}
-        fullyImplementedAnnual={fullyImplementedSimulation.annual}
-        fullyImplementedRates={fullyImplementedRates.rates}
-        topTasks={topTasks}
-      />
+      {activeTab === "business" ? (
+        <>
+          <BaselineTable locale={locale} baseline={baseline} onChange={updateBaseline} onReset={resetBaseline} />
 
-      <TasksTable
-        locale={locale}
-        tasks={tasks}
-        taskMetrics={taskMetrics}
-        importState={importState}
-        activeImport={activeImport}
-        stageFilter={selectedStageFilter}
-        onUpdate={updateTask}
-        onStageFilterChange={setSelectedStageFilter}
-        onSetAllActive={setAllTasksActive}
-        onAdd={addTask}
-        onDownloadScenario={exportScenarioBackup}
-        onImportScenario={importScenarioFromWorkbook}
-        onDownloadTemplate={exportTaskTemplate}
-        onImportFile={importTasksFromWorkbook}
-        onRemove={removeTask}
-        onDuplicate={duplicateTask}
-      />
+          <ImpactHighlights
+            locale={locale}
+            tasks={tasks}
+            selectedStageFilter={selectedStageFilter}
+            onSelectStageFilter={(stage) =>
+              setSelectedStageFilter((current) => (current === stage ? "" : stage))
+            }
+            trafficChangePercent={trafficChangePercent}
+            baselineGross={baselineSimulation.annual.grossRevenue}
+            projectedGross={projectedSimulation.annual.grossRevenue}
+            baselineNet={baselineSimulation.annual.netRevenue}
+            projectedNet={projectedSimulation.annual.netRevenue}
+            baselineOrders={baselineSimulation.annual.orders}
+            projectedOrders={projectedSimulation.annual.orders}
+            baselineAnnual={baselineSimulation.annual}
+            projectedAnnual={projectedSimulation.annual}
+            fullyImplementedAnnual={fullyImplementedSimulation.annual}
+            fullyImplementedRates={fullyImplementedRates.rates}
+            topTasks={topTasks}
+          />
 
-      <details className="section-card details-card">
-        <summary>{text.detailedAnnual}</summary>
-        <AnnualFunnelTable
-          locale={locale}
-          baseline={baselineSimulation.annual}
-          projected={projectedSimulation.annual}
-        />
-      </details>
+          <TasksTable
+            locale={locale}
+            tasks={tasks}
+            taskMetrics={taskMetrics}
+            importState={importState}
+            activeImport={activeImport}
+            stageFilter={selectedStageFilter}
+            onUpdate={updateTask}
+            onStageFilterChange={setSelectedStageFilter}
+            onSetAllActive={setAllTasksActive}
+            onAdd={addTask}
+            onDownloadScenario={exportScenarioBackup}
+            onImportScenario={importScenarioFromWorkbook}
+            onDownloadTemplate={exportTaskTemplate}
+            onImportFile={importTasksFromWorkbook}
+            onRemove={removeTask}
+            onDuplicate={duplicateTask}
+          />
 
-      <details className="section-card details-card">
-        <summary>{text.monthlyModel}</summary>
-        <MonthlyModelTable locale={locale} rows={projectedSimulation.months} />
-      </details>
+          <details className="section-card details-card">
+            <summary>{text.detailedAnnual}</summary>
+            <AnnualFunnelTable
+              locale={locale}
+              baseline={baselineSimulation.annual}
+              projected={projectedSimulation.annual}
+            />
+          </details>
+
+          <details className="section-card details-card">
+            <summary>{text.monthlyModel}</summary>
+            <MonthlyModelTable locale={locale} rows={projectedSimulation.months} />
+          </details>
+        </>
+      ) : (
+        <ProjectTracker locale={locale} tasks={tasks} />
+      )}
     </main>
   );
 }

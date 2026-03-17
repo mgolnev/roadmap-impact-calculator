@@ -1,4 +1,4 @@
-import { ImpactType, Locale, Priority } from "@/lib/types";
+import { ImpactType, Locale, PhaseName, PhaseStatus, Priority } from "@/lib/types";
 
 export const MONTH_LABELS: Record<Locale, string[]> = {
   ru: ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"],
@@ -191,6 +191,33 @@ export const TEXT = {
     tasksShort: "задач",
     expand: "Развернуть",
     collapse: "Свернуть",
+    tabBusiness: "Бизнес и продукт",
+    tabPM: "Проджект-менеджмент",
+    pmTitle: "Трекер задач: прогресс и сроки",
+    pmDescription: "Статус каждой задачи по стадиям: от PRD до подведения итогов A/B-теста. Кликните на точку стадии, чтобы переключить её статус.",
+    pmStartDate: "Старт",
+    pmEndDate: "Дедлайн",
+    pmManager: "Менеджер",
+    pmManagerGJ: "Менеджер GJ",
+    pmBlocker: "Блокер",
+    pmAbTest: "A/B тест",
+    pmDevCost: "Оценка (ч)",
+    pmPhases: "Стадии",
+    pmOnTrack: "В графике",
+    pmDelayed: "Опаздывает",
+    pmAtRisk: "Есть риски",
+    pmNotStarted: "Не начато",
+    pmStatus: "Статус",
+    pmPhaseDone: "из",
+    pmTotalDevCost: "Итого dev-оценка",
+    pmNoBlocker: "—",
+    pmYes: "Да",
+    pmNo: "Нет",
+    pmDaysLeft: "дн. до дедлайна",
+    pmDaysOverdue: "дн. просрочки",
+    pmAllManagers: "Все менеджеры",
+    pmAllStatuses: "Все статусы",
+    pmProgressLabel: "Прогресс по стадиям",
   },
   en: {
     heroEyebrow: "Roadmap Impact Calculator 2026",
@@ -320,11 +347,80 @@ export const TEXT = {
     tasksShort: "tasks",
     expand: "Expand",
     collapse: "Collapse",
+    tabBusiness: "Business & Product",
+    tabPM: "Project Management",
+    pmTitle: "Task tracker: progress & timelines",
+    pmDescription: "Status of each task across stages: from PRD to A/B test results. Click a phase dot to cycle its status.",
+    pmStartDate: "Start",
+    pmEndDate: "Deadline",
+    pmManager: "Manager",
+    pmManagerGJ: "Manager GJ",
+    pmBlocker: "Blocker",
+    pmAbTest: "A/B test",
+    pmDevCost: "Estimate (h)",
+    pmPhases: "Phases",
+    pmOnTrack: "On track",
+    pmDelayed: "Delayed",
+    pmAtRisk: "At risk",
+    pmNotStarted: "Not started",
+    pmStatus: "Status",
+    pmPhaseDone: "of",
+    pmTotalDevCost: "Total dev estimate",
+    pmNoBlocker: "—",
+    pmYes: "Yes",
+    pmNo: "No",
+    pmDaysLeft: "days left",
+    pmDaysOverdue: "days overdue",
+    pmAllManagers: "All managers",
+    pmAllStatuses: "All statuses",
+    pmProgressLabel: "Phase progress",
   },
 } as const;
+
+export const PHASE_LABELS: Record<Locale, Record<PhaseName, string>> = {
+  ru: {
+    prd: "PRD",
+    design: "Дизайн",
+    analytics: "Аналитика",
+    development: "Разработка",
+    qa: "QA",
+    ab_test: "A/B тест",
+    rollout: "Раскатка",
+    results: "Итоги",
+  },
+  en: {
+    prd: "PRD",
+    design: "Design",
+    analytics: "Analytics",
+    development: "Development",
+    qa: "QA",
+    ab_test: "A/B test",
+    rollout: "Rollout",
+    results: "Results",
+  },
+};
+
+export const PHASE_STATUS_LABELS: Record<Locale, Record<PhaseStatus, string>> = {
+  ru: {
+    not_started: "Не начато",
+    in_progress: "В работе",
+    done: "Готово",
+    blocked: "Блокер",
+    skipped: "Пропущено",
+  },
+  en: {
+    not_started: "Not started",
+    in_progress: "In progress",
+    done: "Done",
+    blocked: "Blocked",
+    skipped: "Skipped",
+  },
+};
 
 export const getText = (locale: Locale) => TEXT[locale];
 export const getMonthLabel = (locale: Locale, month: number) => MONTH_LABELS[locale][month - 1];
 export const getStageLabels = (locale: Locale) => STAGE_LABELS[locale];
 export const getImpactTypeLabels = (locale: Locale) => IMPACT_TYPE_LABELS[locale];
 export const getPriorityLabels = (locale: Locale) => PRIORITY_LABELS[locale];
+export const getPhaseLabels = (locale: Locale) => PHASE_LABELS[locale];
+export const getPhaseStatusLabels = (locale: Locale) => PHASE_STATUS_LABELS[locale];

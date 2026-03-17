@@ -983,6 +983,213 @@ h2 {
   gap: 12px;
 }
 
+/* ---------- Tab navigation ---------- */
+
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+  width: fit-content;
+  margin-bottom: 20px;
+}
+
+.tab-button {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 8px 20px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.tab-button:hover {
+  background: white;
+  color: var(--text);
+}
+
+.tab-button.tab-active {
+  background: white;
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---------- PM tracker ---------- */
+
+.pm-table {
+  min-width: 2000px;
+}
+
+.pm-table .sticky-col-1 {
+  min-width: 140px;
+}
+
+.sticky-col-pm-2 {
+  left: 140px;
+  min-width: 260px;
+  box-shadow: 4px 0 12px rgba(23, 32, 51, 0.04);
+}
+
+.pm-phase-header {
+  text-align: center !important;
+  min-width: 56px;
+}
+
+.pm-status-col {
+  min-width: 110px;
+}
+
+.pm-phase-cell {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.pm-center-cell {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.pm-date-input {
+  min-width: 140px;
+}
+
+.pm-cost-input {
+  min-width: 90px;
+}
+
+.pm-project-label {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Phase dot */
+
+.phase-dot {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  padding: 0;
+  background: var(--border-light);
+}
+
+.phase-dot:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.phase-dot-empty {
+  background: var(--border-light);
+  border-color: var(--border);
+}
+
+.phase-dot-progress {
+  background: #3b6bff;
+  border-color: #3b6bff;
+}
+
+.phase-dot-done {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.phase-dot-blocked {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.phase-dot-skipped {
+  background: var(--border);
+  border-color: var(--border);
+  opacity: 0.5;
+}
+
+/* PM status chips */
+
+.pm-status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--font-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pm-status-on-track {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.pm-status-delayed {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.pm-status-at-risk {
+  background: rgba(235, 160, 30, 0.1);
+  color: #b07b10;
+}
+
+.pm-status-not-started {
+  background: rgba(98, 112, 138, 0.08);
+  color: var(--text-secondary);
+}
+
+/* PM legend */
+
+.pm-legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-light);
+}
+
+.pm-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+}
+
+.pm-legend-item .phase-dot {
+  width: 14px;
+  height: 14px;
+  cursor: default;
+}
+
+.pm-legend-item .phase-dot:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* PM sticky column row backgrounds */
+
+.pm-table tbody tr:nth-child(even) .sticky-col {
+  background: var(--surface-muted);
+}
+
+.pm-table tbody tr:hover .sticky-col {
+  background: #f5f7ff;
+}
+
+.pm-table tbody tr:nth-child(even):hover .sticky-col {
+  background: #f0f3ff;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1200px) {
