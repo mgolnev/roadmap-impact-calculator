@@ -3,9 +3,9 @@
 import { useMemo, useRef, useState } from "react";
 
 import { formatCurrency, formatNumber } from "@/lib/format";
-import { getImpactTypeLabels, getMonthLabel, getStageLabels, getText } from "@/lib/i18n";
-import { AdjustableStage, Locale, Task, TaskValueMetrics } from "@/lib/types";
-import { normalizeImpactType, normalizeStage } from "@/store/calculator-store";
+import { getImpactTypeLabels, getMonthLabel, getPriorityLabels, getStageLabels, getText } from "@/lib/i18n";
+import { AdjustableStage, Locale, Priority, Task, TaskValueMetrics } from "@/lib/types";
+import { normalizeImpactType, normalizePriority, normalizeStage } from "@/store/calculator-store";
 
 type TasksTableProps = {
   locale: Locale;
@@ -22,25 +22,6 @@ type TasksTableProps = {
   onImportFile: (file: File) => Promise<void>;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
-};
-
-const getImpactLabel = (
-  locale: Locale,
-  stage?: Task["stage1"],
-  type?: Task["impact1Type"],
-  value = 0,
-) => {
-  const stageLabels = getStageLabels(locale);
-  const text = getText(locale);
-  if (!stage || !type) {
-    return text.notSet;
-  }
-
-  const displayValue =
-    type === "relative_percent" || type === "absolute_pp" ? value * 100 : value;
-  const suffix = type === "absolute_pp" ? " п.п." : type === "absolute_value" ? "" : "%";
-
-  return `${stageLabels[stage]}: ${displayValue.toFixed(type === "absolute_value" ? 0 : 1)}${suffix}`;
 };
 
 const formatImpactInputValue = (
@@ -212,69 +193,52 @@ export function TasksTable({
   onRemove,
   onDuplicate,
 }: TasksTableProps) {
-  const [isDetailedView, setIsDetailedView] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [projectFilter, setProjectFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<Priority | "">("");
+  const [sortMode, setSortMode] = useState<"" | "priority_desc" | "priority_asc">("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const text = getText(locale);
   const stageLabels = getStageLabels(locale);
+  const priorityLabels = getPriorityLabels(locale);
   const projectOptions = useMemo(
     () => Array.from(new Set(tasks.map((task) => task.project.trim() || text.noProject))).sort(),
     [tasks, text.noProject],
   );
   const filteredTasks = useMemo(() => {
     const query = searchValue.trim().toLowerCase();
+    const priorityRank: Record<Priority, number> = { p1: 3, p2: 2, p3: 1 };
 
-    return tasks.filter((task) => {
+    const result = tasks.filter((task) => {
       const projectName = task.project.trim() || text.noProject;
       const matchesProject = !projectFilter || projectName === projectFilter;
+      const matchesPriority = !priorityFilter || task.priority === priorityFilter;
       const matchesStage =
         !stageFilter || task.stage1 === stageFilter || task.stage2 === stageFilter;
       const haystack = `${projectName} ${task.taskName} ${task.comment}`.toLowerCase();
       const matchesSearch = !query || haystack.includes(query);
 
-      return matchesProject && matchesStage && matchesSearch;
+      return matchesProject && matchesPriority && matchesStage && matchesSearch;
     });
-  }, [projectFilter, searchValue, stageFilter, tasks, text.noProject]);
+
+    if (!sortMode) {
+      return result;
+    }
+
+    return [...result].sort((left, right) => {
+      const rankDelta = priorityRank[right.priority] - priorityRank[left.priority];
+
+      if (sortMode === "priority_desc") {
+        return rankDelta || left.taskName.localeCompare(right.taskName);
+      }
+
+      return -rankDelta || left.taskName.localeCompare(right.taskName);
+    });
+  }, [priorityFilter, projectFilter, searchValue, sortMode, stageFilter, tasks, text.noProject]);
   const activeTasksCount = useMemo(
     () => filteredTasks.filter((task) => task.active).length,
     [filteredTasks],
   );
-  const projectGroups = useMemo(() => {
-    const groups: Array<{
-      project: string;
-      tasks: Task[];
-      standalone: number;
-      incremental: number;
-      activeCount: number;
-    }> = [];
-    const map = new Map<string, number>();
-
-    filteredTasks.forEach((task) => {
-      const key = task.project.trim() || text.noProject;
-      const existingIndex = map.get(key);
-
-      if (existingIndex === undefined) {
-        map.set(key, groups.length);
-        groups.push({
-          project: key,
-          tasks: [task],
-          standalone: taskMetrics[task.id]?.standaloneBase ?? 0,
-          incremental: taskMetrics[task.id]?.incrementalCurrent ?? 0,
-          activeCount: task.active ? 1 : 0,
-        });
-        return;
-      }
-
-      const group = groups[existingIndex];
-      group.tasks.push(task);
-      group.standalone += taskMetrics[task.id]?.standaloneBase ?? 0;
-      group.incremental += taskMetrics[task.id]?.incrementalCurrent ?? 0;
-      group.activeCount += task.active ? 1 : 0;
-    });
-
-    return groups;
-  }, [filteredTasks, taskMetrics, text.noProject]);
 
   return (
     <section className="section-card">
@@ -299,13 +263,6 @@ export function TasksTable({
               event.target.value = "";
             }}
           />
-          <button
-            className="ghost-button"
-            onClick={() => setIsDetailedView((value) => !value)}
-            type="button"
-          >
-            {isDetailedView ? text.simpleView : text.detailedView}
-          </button>
           <button className="ghost-button" onClick={() => onSetAllActive(true)} type="button">
             {text.selectAll}
           </button>
@@ -354,6 +311,18 @@ export function TasksTable({
         </select>
         <select
           className="cell-input"
+          value={priorityFilter}
+          onChange={(event) => setPriorityFilter(normalizePriority(event.target.value) ?? "")}
+        >
+          <option value="">{text.allPriorities}</option>
+          {Object.entries(priorityLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="cell-input"
           value={stageFilter}
           onChange={(event) => onStageFilterChange(normalizeStage(event.target.value) ?? "")}
         >
@@ -364,12 +333,23 @@ export function TasksTable({
             </option>
           ))}
         </select>
+        <select
+          className="cell-input"
+          value={sortMode}
+          onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
+        >
+          <option value="">{text.noSorting}</option>
+          <option value="priority_desc">{text.priorityHighToLow}</option>
+          <option value="priority_asc">{text.priorityLowToHigh}</option>
+        </select>
         <button
           className="ghost-button"
           type="button"
           onClick={() => {
             setSearchValue("");
             setProjectFilter("");
+            setPriorityFilter("");
+            setSortMode("");
             onStageFilterChange("");
           }}
         >
@@ -379,189 +359,134 @@ export function TasksTable({
 
       <div className="filters-summary">
         {text.shownTasks}: {filteredTasks.length} / {tasks.length}
+        {priorityFilter ? ` • ${text.priority}: ${priorityLabels[priorityFilter]}` : ""}
         {stageFilter ? ` • ${text.filterByMetric}: ${stageLabels[stageFilter]}` : ""}
       </div>
 
-      {isDetailedView ? (
-        <div className="table-wrap">
-          <table className="matrix-table tasks-table">
-            <thead>
-              <tr>
-                <th className="sticky-col sticky-col-1">{text.enabled}</th>
-                <th className="sticky-col sticky-col-2">{text.project}</th>
-                <th className="sticky-col sticky-col-3 wide-sticky">{text.task}</th>
-                <th>{text.primaryImpact}</th>
-                <th>{text.secondaryImpact}</th>
-                <th>{text.effectStart}</th>
-                <th>{text.activeMonths}</th>
-                <th>{text.standalone}</th>
-                <th>{text.incremental}</th>
-                <th>{text.valuePerMonth}</th>
-                <th>{text.comment}</th>
-                <th>{text.actions}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTasks.map((task) => {
-                const metrics = taskMetrics[task.id];
+      <div className="table-wrap">
+        <table className="matrix-table tasks-table">
+          <thead>
+            <tr>
+              <th className="sticky-col sticky-col-1">{text.enabled}</th>
+              <th className="sticky-col sticky-col-2">{text.project}</th>
+              <th className="sticky-col sticky-col-3 wide-sticky">{text.task}</th>
+              <th>{text.priority}</th>
+              <th>{text.primaryImpact}</th>
+              <th>{text.secondaryImpact}</th>
+              <th>{text.effectStart}</th>
+              <th>{text.activeMonths}</th>
+              <th>{text.standalone}</th>
+              <th>{text.incremental}</th>
+              <th>{text.valuePerMonth}</th>
+              <th>{text.comment}</th>
+              <th>{text.actions}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredTasks.map((task) => {
+              const metrics = taskMetrics[task.id];
 
-                return (
-                  <tr key={task.id}>
-                    <td className="sticky-col sticky-col-1">
+              return (
+                <tr key={task.id}>
+                  <td className="sticky-col sticky-col-1">
+                    <input
+                      checked={task.active}
+                      onChange={(event) => onUpdate(task.id, "active", event.target.checked)}
+                      type="checkbox"
+                    />
+                  </td>
+                  <td className="sticky-col sticky-col-2">
+                    <input
+                      className="cell-input"
+                      value={task.project}
+                      onChange={(event) => onUpdate(task.id, "project", event.target.value)}
+                    />
+                  </td>
+                  <td className="sticky-col sticky-col-3 wide-sticky">
+                    <div className="task-name-cell">
                       <input
-                        checked={task.active}
-                        onChange={(event) => onUpdate(task.id, "active", event.target.checked)}
-                        type="checkbox"
+                        className="cell-input wide-input"
+                        value={task.taskName}
+                        onChange={(event) => onUpdate(task.id, "taskName", event.target.value)}
                       />
-                    </td>
-                    <td className="sticky-col sticky-col-2">
-                      <input
-                        className="cell-input"
-                        value={task.project}
-                        onChange={(event) => onUpdate(task.id, "project", event.target.value)}
-                      />
-                    </td>
-                    <td className="sticky-col sticky-col-3 wide-sticky">
-                      <div className="task-name-cell">
-                        <input
-                          className="cell-input wide-input"
-                          value={task.taskName}
-                          onChange={(event) => onUpdate(task.id, "taskName", event.target.value)}
-                        />
-                      </div>
-                    </td>
-                    <td>
-                      <ImpactEditor locale={locale} index={1} onUpdate={onUpdate} task={task} />
-                    </td>
-                    <td>
-                      <ImpactEditor locale={locale} index={2} onUpdate={onUpdate} task={task} />
-                    </td>
-                    <td>
-                      <select
-                        className="cell-input"
-                        value={task.releaseMonth}
-                        onChange={(event) => onUpdate(task.id, "releaseMonth", Number(event.target.value))}
-                      >
-                        {Array.from({ length: 12 }, (_, index) => (
-                          <option key={index + 1} value={index + 1}>
-                            {getMonthLabel(locale, index + 1)}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>{metrics?.monthsActive ?? 0}</td>
-                    <td>{formatCurrency(metrics?.standaloneBase ?? 0)}</td>
-                    <td>{formatCurrency(metrics?.incrementalCurrent ?? 0)}</td>
-                    <td>{formatCurrency(metrics?.valuePerMonth ?? 0)}</td>
-                    <td>
-                      <textarea
-                        className="cell-input text-area"
-                        value={task.comment}
-                        onChange={(event) => onUpdate(task.id, "comment", event.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <div className="actions">
-                        <button className="ghost-button" type="button" onClick={() => onDuplicate(task.id)}>
-                          {text.duplicate}
-                        </button>
-                        <button className="ghost-button danger" type="button" onClick={() => onRemove(task.id)}>
-                          {text.remove}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td className="sticky-col sticky-col-1" colSpan={7}>
-                  {text.totalByTasks}
-                </td>
-                <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.standaloneBase ?? 0), 0))}</td>
-                <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.incrementalCurrent ?? 0), 0))}</td>
-                <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.valuePerMonth ?? 0), 0))}</td>
-                <td colSpan={2}>{formatNumber(activeTasksCount)} {text.activeTasks}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      ) : (
-        <div className="project-groups">
-          {projectGroups.length > 0 ? (
-            projectGroups.map((group) => (
-            <details className="project-group" key={group.project} open>
-              <summary className="project-group-header">
-                <div>
-                  <div className="project-group-title">{group.project}</div>
-                  <div className="project-group-subtitle">
-                    {group.activeCount} / {group.tasks.length} {text.activeTasks}
-                  </div>
-                </div>
-                <div className="project-group-metrics">
-                  <div>
-                    <span>{text.projectMetricsStandalone}</span>
-                    <strong>{formatCurrency(group.standalone)}</strong>
-                  </div>
-                  <div>
-                    <span>{text.projectMetricsIncremental}</span>
-                    <strong>{formatCurrency(group.incremental)}</strong>
-                  </div>
-                </div>
-              </summary>
-
-              <div className="project-task-list">
-                {group.tasks.map((task) => {
-                  const metrics = taskMetrics[task.id];
-
-                  return (
-                    <div className="project-task-card" key={task.id}>
-                      <div className="project-task-main">
-                        <label className="task-toggle">
-                          <input
-                            checked={task.active}
-                            onChange={(event) => onUpdate(task.id, "active", event.target.checked)}
-                            type="checkbox"
-                          />
-                          <span>{text.enabled}</span>
-                        </label>
-                        <input
-                          className="cell-input"
-                          value={task.taskName}
-                          onChange={(event) => onUpdate(task.id, "taskName", event.target.value)}
-                        />
-                      </div>
-
-                      <div className="project-task-grid">
-                        <div className="project-task-metric">
-                          <span>{text.primaryImpact}</span>
-                          <strong>{getImpactLabel(locale, task.stage1, task.impact1Type, task.impact1Value)}</strong>
-                        </div>
-                        <div className="project-task-metric">
-                          <span>{text.secondaryImpact}</span>
-                          <strong>{getImpactLabel(locale, task.stage2, task.impact2Type, task.impact2Value)}</strong>
-                        </div>
-                        <div className="project-task-metric">
-                          <span>{text.projectTaskStart}</span>
-                          <strong>{getMonthLabel(locale, task.releaseMonth)}</strong>
-                        </div>
-                        <div className="project-task-metric">
-                          <span>{text.projectTaskContribution}</span>
-                          <strong>{formatCurrency(metrics?.incrementalCurrent ?? 0)}</strong>
-                        </div>
-                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            </details>
-            ))
-          ) : (
-            <div className="toolbar-status">{text.noTasksForFilter}</div>
-          )}
-        </div>
-      )}
+                  </td>
+                  <td>
+                    <select
+                      className="cell-input"
+                      value={task.priority}
+                      onChange={(event) =>
+                        onUpdate(task.id, "priority", normalizePriority(event.target.value) ?? "p2")
+                      }
+                    >
+                      {Object.entries(priorityLabels).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <ImpactEditor locale={locale} index={1} onUpdate={onUpdate} task={task} />
+                  </td>
+                  <td>
+                    <ImpactEditor locale={locale} index={2} onUpdate={onUpdate} task={task} />
+                  </td>
+                  <td>
+                    <select
+                      className="cell-input"
+                      value={task.releaseMonth}
+                      onChange={(event) => onUpdate(task.id, "releaseMonth", Number(event.target.value))}
+                    >
+                      {Array.from({ length: 12 }, (_, index) => (
+                        <option key={index + 1} value={index + 1}>
+                          {getMonthLabel(locale, index + 1)}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>{metrics?.monthsActive ?? 0}</td>
+                  <td>{formatCurrency(metrics?.standaloneBase ?? 0)}</td>
+                  <td>{formatCurrency(metrics?.incrementalCurrent ?? 0)}</td>
+                  <td>{formatCurrency(metrics?.valuePerMonth ?? 0)}</td>
+                  <td>
+                    <textarea
+                      className="cell-input text-area"
+                      value={task.comment}
+                      onChange={(event) => onUpdate(task.id, "comment", event.target.value)}
+                    />
+                  </td>
+                  <td>
+                    <div className="actions">
+                      <button className="ghost-button" type="button" onClick={() => onDuplicate(task.id)}>
+                        {text.duplicate}
+                      </button>
+                      <button className="ghost-button danger" type="button" onClick={() => onRemove(task.id)}>
+                        {text.remove}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td className="sticky-col sticky-col-1" colSpan={8}>
+                {text.totalByTasks}
+              </td>
+              <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.standaloneBase ?? 0), 0))}</td>
+              <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.incrementalCurrent ?? 0), 0))}</td>
+              <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.valuePerMonth ?? 0), 0))}</td>
+              <td colSpan={2}>{formatNumber(activeTasksCount)} {text.activeTasks}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {filteredTasks.length === 0 ? (
+        <div className="toolbar-status">{text.noTasksForFilter}</div>
+      ) : null}
     </section>
   );
 }

@@ -22,6 +22,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "New Checkout",
       taskName: "Checkout Redesign",
+      priority: "p1",
       stage1: "order",
       impact1Type: "relative_percent",
       impact1Value: 0.15,
@@ -38,6 +39,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "New Checkout",
       taskName: "Delivery time slot selection",
+      priority: "p2",
       stage1: "order",
       impact1Type: "relative_percent",
       impact1Value: 0.02,
@@ -54,6 +56,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "New Checkout",
       taskName: "Integration with PDP Delivery",
+      priority: "p2",
       stage1: "order",
       impact1Type: "relative_percent",
       impact1Value: 0.02,
@@ -70,6 +73,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "New Checkout",
       taskName: "Integration with Yandex Delivery",
+      priority: "p2",
       stage1: "order",
       impact1Type: "relative_percent",
       impact1Value: 0.02,
@@ -86,6 +90,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "New Checkout",
       taskName: "BNPL",
+      priority: "p1",
       stage1: "order",
       impact1Type: "relative_percent",
       impact1Value: 0.03,
@@ -102,6 +107,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "New Checkout",
       taskName: "Partial Order Fulfillment",
+      priority: "p1",
       stage1: "buyout",
       impact1Type: "relative_percent",
       impact1Value: 0.04,
@@ -118,6 +124,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "New Cart",
       taskName: "Cart checkboxes / selection of items in the cart",
+      priority: "p1",
       stage1: "checkout",
       impact1Type: "relative_percent",
       impact1Value: 0.04,
@@ -134,6 +141,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "PDP",
       taskName: "PDP delivery info block",
+      priority: "p2",
       stage1: "atc",
       impact1Type: "relative_percent",
       impact1Value: 0.025,
@@ -150,6 +158,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "Recs and perso",
       taskName: "Relevant Recommendation in Cart",
+      priority: "p2",
       stage1: "atv",
       impact1Type: "relative_percent",
       impact1Value: 0.03,
@@ -166,6 +175,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "Cart Split",
       taskName: "Cart Split",
+      priority: "p1",
       stage1: "checkout",
       impact1Type: "absolute_pp",
       impact1Value: 0.02,
@@ -182,6 +192,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "UX|UI",
       taskName: "New Homepage",
+      priority: "p2",
       stage1: "catalog",
       impact1Type: "relative_percent",
       impact1Value: 0.01,
@@ -198,6 +209,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "UX|UI",
       taskName: "New Navigation Menu",
+      priority: "p2",
       stage1: "catalog",
       impact1Type: "relative_percent",
       impact1Value: 0.02,
@@ -214,6 +226,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "UX|UI",
       taskName: "New Product Listing",
+      priority: "p1",
       stage1: "pdp",
       impact1Type: "relative_percent",
       impact1Value: 0.02,
@@ -230,6 +243,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "Promo",
       taskName: "Promotion Landing Page Builder",
+      priority: "p2",
       stage1: "catalog",
       impact1Type: "relative_percent",
       impact1Value: 0.015,
@@ -246,6 +260,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "Organic traffic",
       taskName: "SEO & Organic Traffic Recovery",
+      priority: "p1",
       stage1: "traffic",
       impact1Type: "relative_percent",
       impact1Value: 0.06,
@@ -262,6 +277,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "Promo",
       taskName: "Cascading Promo Codes",
+      priority: "p3",
       stage1: "buyout",
       impact1Type: "relative_percent",
       impact1Value: 0.02,
@@ -278,6 +294,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "Fast front A/B",
       taskName: "A/B Testing Platform",
+      priority: "p3",
       stage1: "atc",
       impact1Type: "relative_percent",
       impact1Value: 0.01,
@@ -294,6 +311,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "Recs and perso",
       taskName: "Gravity Field",
+      priority: "p2",
       stage1: "atc",
       impact1Type: "relative_percent",
       impact1Value: 0.015,
@@ -310,6 +328,7 @@ export const DEFAULT_TASKS: Task[] = [
     {
       project: "Tech debt",
       taskName: "Load speed",
+      priority: "p2",
       stage1: "pdp",
       impact1Type: "relative_percent",
       impact1Value: 0.02,

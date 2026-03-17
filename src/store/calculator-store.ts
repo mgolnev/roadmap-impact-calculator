@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { DEFAULT_BASELINE, DEFAULT_TASKS } from "@/lib/constants";
-import { AdjustableStage, BaselineInput, ImpactType, Locale, Task } from "@/lib/types";
+import { AdjustableStage, BaselineInput, ImpactType, Locale, Priority, Task } from "@/lib/types";
 
 type StoreState = {
   baseline: BaselineInput;
@@ -25,6 +25,7 @@ const newTaskTemplate = (index: number): Task => ({
   id: `task-new-${Date.now()}-${index}`,
   project: "Custom",
   taskName: `Новая задача ${index}`,
+  priority: "p2",
   stage1: "order",
   impact1Type: "relative_percent",
   impact1Value: 0,
@@ -160,6 +161,7 @@ export const useCalculatorStore = create<StoreState>()(
           state?.tasks?.map((task) => ({
             ...task,
             project: task.project ?? task.stream ?? "Custom",
+            priority: (task.priority as Priority | undefined) ?? "p2",
           })) ?? DEFAULT_TASKS;
 
         return {
@@ -178,3 +180,6 @@ export const normalizeStage = (value: string): AdjustableStage | undefined =>
 
 export const normalizeImpactType = (value: string): ImpactType | undefined =>
   value ? (value as ImpactType) : undefined;
+
+export const normalizePriority = (value: string): Priority | undefined =>
+  value ? (value as Priority) : undefined;

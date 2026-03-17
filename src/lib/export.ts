@@ -7,7 +7,7 @@ import {
   getTrafficMultiplier,
   simulateScenario,
 } from "@/lib/calculations";
-import { getImpactTypeLabels, getMonthLabel, getStageLabels, getText } from "@/lib/i18n";
+import { getImpactTypeLabels, getMonthLabel, getPriorityLabels, getStageLabels, getText } from "@/lib/i18n";
 import { BaselineInput, Locale, Task, TaskValueMetrics } from "@/lib/types";
 
 type ExportWorkbookParams = {
@@ -108,6 +108,7 @@ export const buildRoadmapImpactWorkbook = ({
   const text = getText(locale);
   const stageLabels = getStageLabels(locale);
   const impactTypeLabels = getImpactTypeLabels(locale);
+  const priorityLabels = getPriorityLabels(locale);
   const trafficMultiplier = getTrafficMultiplier(trafficChangePercent);
   const baselineSimulation = simulateScenario(baseline, [], trafficMultiplier);
   const projectedSimulation = simulateScenario(baseline, tasks, trafficMultiplier);
@@ -222,6 +223,7 @@ export const buildRoadmapImpactWorkbook = ({
       active: task.active,
       project: task.project,
       taskName: task.taskName,
+      priority: priorityLabels[task.priority],
       stage1: task.stage1 ? stageLabels[task.stage1] : "",
       impact1Type: task.impact1Type ? impactTypeLabels[task.impact1Type] : "",
       impact1Value: task.impact1Value,

@@ -7,6 +7,7 @@ export type AdjustableStage =
   | "buyout"
   | "upt";
 export type ImpactType = "relative_percent" | "absolute_pp" | "absolute_value";
+export type Priority = "p1" | "p2" | "p3";
 
 export type BaselineInput = {
   sessions: number;
@@ -49,6 +50,7 @@ export type Task = {
   id: string;
   project: string;
   taskName: string;
+  priority: Priority;
   stage1?: AdjustableStage;
   impact1Type?: ImpactType;
   impact1Value: number;

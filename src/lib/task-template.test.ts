@@ -8,6 +8,7 @@ const exampleTask: Task = {
   id: "task-1",
   project: "New Checkout",
   taskName: "Checkout Redesign",
+  priority: "p1",
   stage1: "order",
   impact1Type: "relative_percent",
   impact1Value: 0.15,
@@ -33,6 +34,7 @@ describe("task import template", () => {
     );
 
     expect(taskRows[0].task_name).toBe("Checkout Redesign");
+    expect(taskRows[0].priority).toBe("p1");
     expect(taskRows[0].impact_1_value).toBe(15);
     expect(taskRows[0].impact_2_value).toBe(2);
   });
@@ -44,6 +46,7 @@ describe("task import template", () => {
         active: "TRUE",
         project: "SEO",
         task_name: "Organic recovery",
+        priority: "p3",
         stage_1: "traffic",
         impact_1_type: "relative_percent",
         impact_1_value: 15,
@@ -65,6 +68,7 @@ describe("task import template", () => {
       active: true,
       project: "SEO",
       taskName: "Organic recovery",
+      priority: "p3",
       stage1: "traffic",
       impact1Type: "relative_percent",
       impact1Value: 0.15,
@@ -96,5 +100,6 @@ describe("task import template", () => {
     const result = parseTaskImportWorkbook(file, "ru");
 
     expect(result.tasks[0]?.impact1Value).toBeCloseTo(0.008, 10);
+    expect(result.tasks[0]?.priority).toBe("p2");
   });
 });

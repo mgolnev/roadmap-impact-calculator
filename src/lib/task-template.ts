@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 
-import { getImpactTypeLabels, getMonthLabel, getStageLabels, getText, IMPACT_TYPE_LABELS, MONTH_LABELS, STAGE_LABELS } from "@/lib/i18n";
-import { AdjustableStage, ImpactType, Locale, Task } from "@/lib/types";
+import { getImpactTypeLabels, getMonthLabel, getPriorityLabels, getStageLabels, getText, IMPACT_TYPE_LABELS, MONTH_LABELS, PRIORITY_LABELS, STAGE_LABELS } from "@/lib/i18n";
+import { AdjustableStage, ImpactType, Locale, Priority, Task } from "@/lib/types";
 
 const TEMPLATE_SHEET_NAME: Record<Locale, string> = {
   ru: "Шаблон задач",
@@ -22,6 +22,7 @@ const HEADER_KEYS = [
   "active",
   "project",
   "taskName",
+  "priority",
   "stage1",
   "impact1Type",
   "impact1Value",
@@ -39,6 +40,7 @@ const HEADER_LABELS: Record<Locale, Record<TemplateHeaderKey, string>> = {
     active: "active",
     project: "project",
     taskName: "task_name",
+    priority: "priority",
     stage1: "stage_1",
     impact1Type: "impact_1_type",
     impact1Value: "impact_1_value",
@@ -52,6 +54,7 @@ const HEADER_LABELS: Record<Locale, Record<TemplateHeaderKey, string>> = {
     active: "active",
     project: "project",
     taskName: "task_name",
+    priority: "priority",
     stage1: "stage_1",
     impact1Type: "impact_1_type",
     impact1Value: "impact_1_value",
@@ -67,6 +70,7 @@ const HEADER_ALIASES: Record<TemplateHeaderKey, string[]> = {
   active: ["active", "enabled", "on", "вкл", "включена"],
   project: ["project", "проект"],
   taskName: ["taskname", "task_name", "task", "задача", "task name"],
+  priority: ["priority", "prioritet", "приоритет"],
   stage1: ["stage1", "stage_1", "primaryimpactstage", "основнойэтап", "основное влияние"],
   impact1Type: ["impact1type", "impact_1_type", "primaryimpacttype", "основнойтип", "тип1"],
   impact1Value: ["impact1value", "impact_1_value", "primaryimpactvalue", "основноезначение", "значение1"],
@@ -75,6 +79,12 @@ const HEADER_ALIASES: Record<TemplateHeaderKey, string[]> = {
   impact2Value: ["impact2value", "impact_2_value", "secondaryimpactvalue", "допзначение", "значение2"],
   releaseMonth: ["releasemonth", "release_month", "month", "месяцрелиза", "стартэффекта"],
   comment: ["comment", "notes", "комментарий", "гипотеза"],
+};
+
+const PRIORITY_ALIASES: Record<Priority, string[]> = {
+  p1: ["p1", "high", "highest", "major", "высокий", "высокийприоритет"],
+  p2: ["p2", "medium", "med", "normal", "средний", "среднийприоритет"],
+  p3: ["p3", "low", "minor", "низкий", "низкийприоритет"],
 };
 
 const normalizeToken = (value: string) =>
@@ -138,6 +148,7 @@ const parseMonth = (value: string) => {
 
 const STAGE_CODE_LIST = Object.keys(STAGE_LABELS.ru) as AdjustableStage[];
 const IMPACT_TYPE_CODE_LIST = Object.keys(IMPACT_TYPE_LABELS.ru) as ImpactType[];
+const PRIORITY_CODE_LIST = Object.keys(PRIORITY_LABELS.ru) as Priority[];
 
 const parseStage = (value: string) => {
   const normalized = normalizeToken(value);
@@ -171,6 +182,26 @@ const parseImpactType = (value: string) => {
       normalizeToken(IMPACT_TYPE_LABELS.en[type]) === normalized
     ) {
       return type;
+    }
+  }
+
+  return null;
+};
+
+const parsePriority = (value: string) => {
+  const normalized = normalizeToken(value);
+  if (!normalized) {
+    return "p2" as Priority;
+  }
+
+  for (const priority of PRIORITY_CODE_LIST) {
+    if (
+      normalizeToken(priority) === normalized ||
+      PRIORITY_ALIASES[priority].includes(normalized) ||
+      normalizeToken(PRIORITY_LABELS.ru[priority]) === normalized ||
+      normalizeToken(PRIORITY_LABELS.en[priority]) === normalized
+    ) {
+      return priority;
     }
   }
 
@@ -234,6 +265,7 @@ const buildImportRow = (task: Task) => ({
   active: task.active,
   project: task.project,
   task_name: task.taskName,
+  priority: task.priority,
   stage_1: task.stage1 ?? "",
   impact_1_type: task.impact1Type ?? "",
   impact_1_value: formatTemplateImpactValue(task.impact1Type, task.impact1Value),
@@ -267,6 +299,13 @@ const buildGuideRows = (locale: Locale) => {
         description: "Название задачи",
         format: "текст",
         example: "Checkout Redesign",
+      },
+      {
+        field: "priority",
+        required: "нет",
+        description: "Управленческий приоритет задачи",
+        format: "p1 / p2 / p3",
+        example: "p1",
       },
       {
         field: "stage_1",
@@ -343,6 +382,13 @@ const buildGuideRows = (locale: Locale) => {
       example: "Checkout Redesign",
     },
     {
+      field: "priority",
+      required: "no",
+      description: "Manual task priority",
+      format: "p1 / p2 / p3",
+      example: "p1",
+    },
+    {
       field: "stage_1",
       required: "yes",
       description: "Primary impact stage",
@@ -397,6 +443,7 @@ const buildGuideRows = (locale: Locale) => {
 const buildReferenceRows = (locale: Locale) => {
   const stageLabels = getStageLabels(locale);
   const impactLabels = getImpactTypeLabels(locale);
+  const priorityLabels = getPriorityLabels(locale);
 
   return [
     ...STAGE_CODE_LIST.map((stage) => ({
@@ -421,6 +468,12 @@ const buildReferenceRows = (locale: Locale) => {
             : locale === "ru"
               ? "Абсолютное значение"
               : "Absolute value",
+    })),
+    ...PRIORITY_CODE_LIST.map((priority) => ({
+      group: locale === "ru" ? "priority" : "priority",
+      code: priority,
+      label: priorityLabels[priority],
+      note: locale === "ru" ? "Ручной приоритет" : "Manual priority",
     })),
     ...Array.from({ length: 12 }, (_, index) => ({
       group: locale === "ru" ? "month" : "month",
@@ -450,6 +503,7 @@ export const buildTaskImportWorkbook = ({
       active: true,
       project: locale === "ru" ? "Новый проект" : "New project",
       taskName: locale === "ru" ? "Новая задача" : "New task",
+      priority: "p2" as const,
       stage1: "order" as const,
       impact1Type: "relative_percent" as const,
       impact1Value: 0.1,
@@ -465,7 +519,7 @@ export const buildTaskImportWorkbook = ({
   const guideSheet = XLSX.utils.json_to_sheet(buildGuideRows(locale));
   const referenceSheet = XLSX.utils.json_to_sheet(buildReferenceRows(locale));
 
-  applyColumnWidths(templateSheet, [10, 20, 36, 16, 20, 16, 16, 20, 16, 14, 40]);
+  applyColumnWidths(templateSheet, [10, 20, 36, 14, 16, 20, 16, 16, 20, 16, 14, 40]);
   applyColumnWidths(guideSheet, [28, 12, 70, 60, 28]);
   applyColumnWidths(referenceSheet, [16, 22, 28, 28]);
 
@@ -529,6 +583,7 @@ export const parseTaskImportWorkbook = (
     const lineNumber = firstNonEmptyRow + rowIndex + 2;
     const project = cellValue(row, columnMap, "project");
     const taskName = cellValue(row, columnMap, "taskName");
+    const priorityRaw = cellValue(row, columnMap, "priority");
     const stage1Raw = cellValue(row, columnMap, "stage1");
     const impact1TypeRaw = cellValue(row, columnMap, "impact1Type");
     const impact1ValueRaw = cellValue(row, columnMap, "impact1Value");
@@ -541,6 +596,12 @@ export const parseTaskImportWorkbook = (
 
     if (!taskName) {
       errors.push(locale === "ru" ? `Строка ${lineNumber}: не заполнено task_name.` : `Row ${lineNumber}: task_name is required.`);
+      return;
+    }
+
+    const priority = parsePriority(priorityRaw);
+    if (priority === null) {
+      errors.push(locale === "ru" ? `Строка ${lineNumber}: неверный priority.` : `Row ${lineNumber}: invalid priority.`);
       return;
     }
 
@@ -626,6 +687,7 @@ export const parseTaskImportWorkbook = (
       active,
       project: project || (locale === "ru" ? "Без проекта" : "No project"),
       taskName,
+      priority,
       stage1,
       impact1Type,
       impact1Value,

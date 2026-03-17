@@ -20,6 +20,7 @@ const task: Task = {
   id: "task-1",
   project: "New Checkout",
   taskName: "Checkout Redesign",
+  priority: "p1",
   stage1: "order",
   impact1Type: "relative_percent",
   impact1Value: 0.1,
@@ -82,6 +83,7 @@ describe("buildRoadmapImpactWorkbook", () => {
     expect(baselineRows.some((row) => row.metric === "Gross revenue")).toBe(true);
     expect(impactRows.some((row) => row.stage === "Checkout -> Заказ")).toBe(true);
     expect(tasksRows[0].taskName).toBe("Checkout Redesign");
+    expect(tasksRows[0].priority).toBe("P1 / высокий");
     expect(monthlyRows).toHaveLength(12);
   });
 });

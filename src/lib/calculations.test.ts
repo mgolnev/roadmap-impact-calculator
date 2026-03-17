@@ -19,6 +19,7 @@ const createTask = (overrides: Partial<Task>): Task => ({
   id: overrides.id ?? "task",
   project: overrides.project ?? "Project",
   taskName: overrides.taskName ?? "Task",
+  priority: overrides.priority ?? "p2",
   stage1: overrides.stage1,
   impact1Type: overrides.impact1Type,
   impact1Value: overrides.impact1Value ?? 0,

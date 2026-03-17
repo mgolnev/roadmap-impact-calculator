@@ -1,4 +1,4 @@
-import { ImpactType, Locale } from "@/lib/types";
+import { ImpactType, Locale, Priority } from "@/lib/types";
 
 export const MONTH_LABELS: Record<Locale, string[]> = {
   ru: ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"],
@@ -49,6 +49,19 @@ export const IMPACT_TYPE_LABELS: Record<Locale, Record<ImpactType, string>> = {
   },
 };
 
+export const PRIORITY_LABELS: Record<Locale, Record<Priority, string>> = {
+  ru: {
+    p1: "P1 / высокий",
+    p2: "P2 / средний",
+    p3: "P3 / низкий",
+  },
+  en: {
+    p1: "P1 / high",
+    p2: "P2 / medium",
+    p3: "P3 / low",
+  },
+};
+
 export const TEXT = {
   ru: {
     heroEyebrow: "Roadmap Impact Calculator 2026",
@@ -82,6 +95,7 @@ export const TEXT = {
     impactDescription:
       "Короткий блок для первого прочтения: что получится по текущему сценарию и какие задачи дают основной вклад.",
     scenarioConditions: "Условия сценария",
+    baseTitle: "База",
     afterTasksTitle: "После задач",
     deltaToBaseTitle: "Дельта к базе",
     asIsToBeTitle: "As is / To be по ключевым метрикам",
@@ -89,6 +103,9 @@ export const TEXT = {
     toBe: "To be",
     conversionFromSessions: "Конверсия от сессий",
     grossOrders: "Гросс заказы",
+    baseGrossOrders: "Гросс заказы база",
+    baseGrossRevenue: "Gross revenue база",
+    baseNetRevenue: "Net revenue база",
     ordersAfterTasks: "Гросс заказы после задач",
     netRevenueAfterTasks: "Net revenue после задач",
     deltaNetRevenue: "Delta Net revenue",
@@ -96,8 +113,7 @@ export const TEXT = {
     deltaGrossRevenue: "Delta Gross revenue",
     deltaOrders: "Delta заказов",
     topTasksTitle: "Топ проектов по вкладу в текущем плане",
-    totalTasksInProjects: "Всего задач в проектах",
-    addedBenefit: "Добавленная выгода",
+    topTasksHint: "Справа — вклад проекта в Net revenue по текущему плану.",
     noActiveTasks: "Нет активных задач",
     allMetricsImpactTitle: "Показатели после выбранных задач",
     impactFunnelTitle: "Воронка конверсий после выбранных задач",
@@ -125,6 +141,7 @@ export const TEXT = {
     task: "Задача",
     primaryImpact: "Основное влияние",
     secondaryImpact: "Доп. влияние",
+    priority: "Приоритет",
     effectStart: "Старт эффекта",
     activeMonths: "Мес. влияния",
     standalone: "Задача сама по себе",
@@ -141,7 +158,12 @@ export const TEXT = {
     activeTasks: "активных задач",
     shownTasks: "Показано задач",
     allProjects: "Все проекты",
+    allPriorities: "Все приоритеты",
     allMetrics: "Все метрики",
+    sortBy: "Сортировка",
+    noSorting: "Без сортировки",
+    priorityHighToLow: "Приоритет: P1 -> P3",
+    priorityLowToHigh: "Приоритет: P3 -> P1",
     clearFilters: "Снять фильтры",
     taskSearchPlaceholder: "Поиск по задаче, проекту или комментарию",
     filterByMetric: "Фильтр по метрике",
@@ -198,6 +220,7 @@ export const TEXT = {
     impactDescription:
       "A quick first-read block: what the current scenario produces and which tasks drive the biggest effect.",
     scenarioConditions: "Scenario conditions",
+    baseTitle: "Base",
     afterTasksTitle: "After tasks",
     deltaToBaseTitle: "Delta vs base",
     asIsToBeTitle: "As is / to be key metrics",
@@ -205,6 +228,9 @@ export const TEXT = {
     toBe: "To be",
     conversionFromSessions: "Conversion from sessions",
     grossOrders: "Gross orders",
+    baseGrossOrders: "Base gross orders",
+    baseGrossRevenue: "Base gross revenue",
+    baseNetRevenue: "Base net revenue",
     ordersAfterTasks: "Gross orders after tasks",
     netRevenueAfterTasks: "Net revenue after tasks",
     deltaNetRevenue: "Delta net revenue",
@@ -212,8 +238,7 @@ export const TEXT = {
     deltaGrossRevenue: "Delta gross revenue",
     deltaOrders: "Delta orders",
     topTasksTitle: "Top projects by contribution in the current plan",
-    totalTasksInProjects: "Total tasks across projects",
-    addedBenefit: "Added benefit",
+    topTasksHint: "On the right is the project's contribution to net revenue in the current plan.",
     noActiveTasks: "No active tasks",
     allMetricsImpactTitle: "Metrics after selected tasks",
     impactFunnelTitle: "Conversion funnel after selected tasks",
@@ -241,6 +266,7 @@ export const TEXT = {
     task: "Task",
     primaryImpact: "Primary impact",
     secondaryImpact: "Secondary impact",
+    priority: "Priority",
     effectStart: "Effect start",
     activeMonths: "Active months",
     standalone: "Task on its own",
@@ -257,7 +283,12 @@ export const TEXT = {
     activeTasks: "active tasks",
     shownTasks: "Shown tasks",
     allProjects: "All projects",
+    allPriorities: "All priorities",
     allMetrics: "All metrics",
+    sortBy: "Sort",
+    noSorting: "No sorting",
+    priorityHighToLow: "Priority: P1 -> P3",
+    priorityLowToHigh: "Priority: P3 -> P1",
     clearFilters: "Clear filters",
     taskSearchPlaceholder: "Search by task, project, or comment",
     filterByMetric: "Metric filter",
@@ -288,3 +319,4 @@ export const getText = (locale: Locale) => TEXT[locale];
 export const getMonthLabel = (locale: Locale, month: number) => MONTH_LABELS[locale][month - 1];
 export const getStageLabels = (locale: Locale) => STAGE_LABELS[locale];
 export const getImpactTypeLabels = (locale: Locale) => IMPACT_TYPE_LABELS[locale];
+export const getPriorityLabels = (locale: Locale) => PRIORITY_LABELS[locale];
