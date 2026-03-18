@@ -52,6 +52,12 @@ const parseImpactInputValue = (
   return rawValue;
 };
 
+const PRIORITY_INLINE_STYLES: Record<string, React.CSSProperties> = {
+  p1: { background: "rgba(206, 59, 59, 0.08)", color: "#ce3b3b", borderColor: "rgba(206, 59, 59, 0.2)" },
+  p2: { background: "rgba(59, 107, 255, 0.06)", color: "#3b6bff", borderColor: "rgba(59, 107, 255, 0.18)" },
+  p3: { background: "rgba(98, 112, 138, 0.08)", color: "#5c6a82", borderColor: "#e2e8f4" },
+};
+
 const SHORT_IMPACT_TYPE_LABELS: Record<Locale, Record<ImpactType, string>> = {
   ru: {
     relative_percent: "%",
@@ -219,8 +225,6 @@ export function TasksTable({
 }: TasksTableProps) {
   const [searchValue, setSearchValue] = useState("");
   const [projectFilter, setProjectFilter] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState<Priority | "">("");
-  const [sortMode, setSortMode] = useState<"" | "priority_desc" | "priority_asc">("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scenarioFileInputRef = useRef<HTMLInputElement | null>(null);
   const text = getText(locale);
@@ -232,34 +236,18 @@ export function TasksTable({
   );
   const filteredTasks = useMemo(() => {
     const query = searchValue.trim().toLowerCase();
-    const priorityRank: Record<Priority, number> = { p1: 3, p2: 2, p3: 1 };
 
-    const result = tasks.filter((task) => {
+    return tasks.filter((task) => {
       const projectName = task.project.trim() || text.noProject;
       const matchesProject = !projectFilter || projectName === projectFilter;
-      const matchesPriority = !priorityFilter || task.priority === priorityFilter;
       const matchesStage =
         !stageFilter || task.stage1 === stageFilter || task.stage2 === stageFilter;
       const haystack = `${projectName} ${task.taskName} ${task.comment}`.toLowerCase();
       const matchesSearch = !query || haystack.includes(query);
 
-      return matchesProject && matchesPriority && matchesStage && matchesSearch;
+      return matchesProject && matchesStage && matchesSearch;
     });
-
-    if (!sortMode) {
-      return result;
-    }
-
-    return [...result].sort((left, right) => {
-      const rankDelta = priorityRank[right.priority] - priorityRank[left.priority];
-
-      if (sortMode === "priority_desc") {
-        return rankDelta || left.taskName.localeCompare(right.taskName);
-      }
-
-      return -rankDelta || left.taskName.localeCompare(right.taskName);
-    });
-  }, [priorityFilter, projectFilter, searchValue, sortMode, stageFilter, tasks, text.noProject]);
+  }, [projectFilter, searchValue, stageFilter, tasks, text.noProject]);
   const activeTasksCount = useMemo(
     () => filteredTasks.filter((task) => task.active).length,
     [filteredTasks],
@@ -295,18 +283,6 @@ export function TasksTable({
           </select>
           <select
             className="cell-input"
-            value={priorityFilter}
-            onChange={(event) => setPriorityFilter(normalizePriority(event.target.value) ?? "")}
-          >
-            <option value="">{text.allPriorities}</option>
-            {Object.entries(priorityLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <select
-            className="cell-input"
             value={stageFilter}
             onChange={(event) => onStageFilterChange(normalizeStage(event.target.value) ?? "")}
           >
@@ -320,23 +296,12 @@ export function TasksTable({
         </div>
 
         <div className="filters-row filters-row-secondary">
-          <select
-            className="cell-input"
-            value={sortMode}
-            onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
-          >
-            <option value="">{text.noSorting}</option>
-            <option value="priority_desc">{text.priorityHighToLow}</option>
-            <option value="priority_asc">{text.priorityLowToHigh}</option>
-          </select>
           <button
             className="ghost-button"
             type="button"
             onClick={() => {
               setSearchValue("");
               setProjectFilter("");
-              setPriorityFilter("");
-              setSortMode("");
               onStageFilterChange("");
             }}
           >
@@ -376,34 +341,45 @@ export function TasksTable({
             event.target.value = "";
           }}
         />
-        <button className="ghost-button" onClick={() => onSetAllActive(true)} type="button">
-          {text.selectAll}
-        </button>
-        <button className="ghost-button" onClick={() => onSetAllActive(false)} type="button">
-          {text.deselectAll}
-        </button>
-        <button className="ghost-button" onClick={onDownloadScenario} type="button">
-          {text.saveScenario}
-        </button>
-        <button
-          className="ghost-button"
-          onClick={() => scenarioFileInputRef.current?.click()}
-          disabled={activeImport !== null}
-          type="button"
-        >
-          {activeImport === "scenario" ? text.importInProgress : text.loadScenario}
-        </button>
-        <button className="ghost-button" onClick={onDownloadTemplate} type="button">
-          {text.downloadTemplate}
-        </button>
-        <button
-          className="ghost-button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={activeImport !== null}
-          type="button"
-        >
-          {activeImport === "tasks" ? text.importInProgress : text.importFromExcel}
-        </button>
+
+        <div className="toolbar-group">
+          <button className="ghost-button" onClick={() => onSetAllActive(true)} type="button">
+            {text.selectAll}
+          </button>
+          <button className="ghost-button" onClick={() => onSetAllActive(false)} type="button">
+            {text.deselectAll}
+          </button>
+        </div>
+
+        <span className="toolbar-divider" />
+
+        <div className="toolbar-group">
+          <button className="ghost-button" onClick={onDownloadScenario} type="button">
+            {text.saveScenario}
+          </button>
+          <button
+            className="ghost-button"
+            onClick={() => scenarioFileInputRef.current?.click()}
+            disabled={activeImport !== null}
+            type="button"
+          >
+            {activeImport === "scenario" ? text.importInProgress : text.loadScenario}
+          </button>
+          <button className="ghost-button" onClick={onDownloadTemplate} type="button">
+            {text.downloadTemplate}
+          </button>
+          <button
+            className="ghost-button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={activeImport !== null}
+            type="button"
+          >
+            {activeImport === "tasks" ? text.importInProgress : text.importFromExcel}
+          </button>
+        </div>
+
+        <span className="toolbar-divider" />
+
         <button className="primary-button" onClick={onAdd} type="button">
           {text.addTask}
         </button>
@@ -415,7 +391,6 @@ export function TasksTable({
 
       <div className="filters-summary">
         {text.shownTasks}: {filteredTasks.length} / {tasks.length}
-        {priorityFilter ? ` • ${text.priority}: ${priorityLabels[priorityFilter]}` : ""}
         {stageFilter ? ` • ${text.filterByMetric}: ${stageLabels[stageFilter]}` : ""}
       </div>
 
@@ -426,7 +401,6 @@ export function TasksTable({
               <th className="sticky-col sticky-col-1 checkbox-col">{text.enabled}</th>
               <th className="sticky-col sticky-col-2">{text.project}</th>
               <th className="sticky-col sticky-col-3 wide-sticky">{text.task}</th>
-              <th>{text.priority}</th>
               <th>{text.primaryImpact}</th>
               <th>{text.secondaryImpact}</th>
               <th>{text.effectStart}</th>
@@ -435,6 +409,7 @@ export function TasksTable({
               <th>{text.incremental}</th>
               <th>{text.valuePerMonth}</th>
               <th>{text.comment}</th>
+              <th>{text.priority}</th>
               <th>{text.actions}</th>
             </tr>
           </thead>
@@ -469,21 +444,6 @@ export function TasksTable({
                     </div>
                   </td>
                   <td>
-                    <select
-                      className={`cell-input priority-select priority-select-${task.priority}`}
-                      value={task.priority}
-                      onChange={(event) =>
-                        onUpdate(task.id, "priority", normalizePriority(event.target.value) ?? "p2")
-                      }
-                    >
-                      {Object.entries(priorityLabels).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
                     <ImpactEditor locale={locale} index={1} onUpdate={onUpdate} task={task} />
                   </td>
                   <td>
@@ -512,6 +472,22 @@ export function TasksTable({
                       value={task.comment}
                       onChange={(event) => onUpdate(task.id, "comment", event.target.value)}
                     />
+                  </td>
+                  <td>
+                    <select
+                      className="cell-input priority-select"
+                      style={PRIORITY_INLINE_STYLES[task.priority]}
+                      value={task.priority}
+                      onChange={(event) =>
+                        onUpdate(task.id, "priority", normalizePriority(event.target.value) ?? "p2")
+                      }
+                    >
+                      {Object.entries(priorityLabels).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td>
                     <div className="actions">

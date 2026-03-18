@@ -11,6 +11,7 @@ type ImpactHighlightsProps = {
   selectedStageFilter: AdjustableStage | "";
   onSelectStageFilter: (stage: AdjustableStage | "") => void;
   trafficChangePercent: number;
+  onTrafficChangePercent: (value: number) => void;
   baselineNet: number;
   projectedNet: number;
   baselineGross: number;
@@ -199,12 +200,16 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
         <section className="impact-summary-section">
           <div className="impact-summary-title">{text.scenarioConditions}</div>
           <div className="insight-grid single-column">
-            <div className="insight-card accent-card">
+            <label className="insight-card accent-card">
               <span>{text.trafficChange}</span>
-              <strong>{`${props.trafficChangePercent >= 0 ? "+" : ""}${formatPercent(
-                props.trafficChangePercent / 100,
-              )}`}</strong>
-            </div>
+              <input
+                className="cell-input"
+                type="number"
+                step="0.1"
+                value={props.trafficChangePercent}
+                onChange={(e) => props.onTrafficChangePercent(Number(e.target.value))}
+              />
+            </label>
           </div>
         </section>
 
@@ -301,7 +306,7 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
         <div className="top-tasks-list">
           {props.topTasks.length > 0 ? (
             props.topTasks.map((task, index) => (
-              <div className={`top-task-item ${index === 0 ? "top-task-leader" : ""}`} key={task.projectName}>
+              <div className="top-task-item" key={task.projectName}>
                 <span>
                   <span className="top-task-rank">{index + 1}</span>
                   {task.projectName} ({task.taskCount} {text.tasksShort})

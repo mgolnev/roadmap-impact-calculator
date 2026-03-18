@@ -1,6 +1,10 @@
 node_modules
 .next
+.env.local
+.env*.local
+public/supabase-config.json
 out
 dist
 portable
 *.log
+.vercel

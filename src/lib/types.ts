@@ -155,3 +155,12 @@ export type TaskPMData = {
   devCostHours: number;
   phases: Record<PhaseName, PhaseStatus>;
 };
+
+export type SharedRoadmapPayload = {
+  baseline: BaselineInput;
+  tasks: Task[];
+  trafficChangePercent: number;
+  locale: Locale;
+  pmData: Record<string, TaskPMData>;
+};
+

@@ -174,7 +174,7 @@ export function BaselineTable({ baseline, locale, onChange, onReset }: BaselineT
         </table>
       </div>
 
-      <div className="baseline-grid compact">
+      <div className="baseline-grid compact baseline-grid-subdued">
         <label className="field-card">
           <span>{text.sessions}</span>
           <EditableNumberInput

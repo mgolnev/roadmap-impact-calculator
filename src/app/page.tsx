@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 import { AnnualFunnelTable } from "@/components/AnnualFunnelTable";
@@ -19,8 +19,10 @@ import {
   getTrafficMultiplier,
   simulateScenario,
 } from "@/lib/calculations";
-import { AdjustableStage } from "@/lib/types";
+import { AdjustableStage, SharedRoadmapPayload } from "@/lib/types";
+import { getSupabaseClientAsync } from "@/lib/supabase";
 import { useCalculatorStore } from "@/store/calculator-store";
+import { usePMStore } from "@/store/pm-store";
 
 export default function HomePage() {
   const {
@@ -40,11 +42,13 @@ export default function HomePage() {
     removeTask,
     duplicateTask,
   } = useCalculatorStore();
+  const { pmData, setPMData } = usePMStore();
   const text = getText(locale);
   const [importState, setImportState] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [activeImport, setActiveImport] = useState<"tasks" | "scenario" | null>(null);
   const [selectedStageFilter, setSelectedStageFilter] = useState<AdjustableStage | "">("");
   const [activeTab, setActiveTab] = useState<"business" | "pm">("business");
+  const [sharedStatus, setSharedStatus] = useState<string | null>(null);
 
   const baselineSimulation = useMemo(
     () => simulateScenario(baseline, [], getTrafficMultiplier(trafficChangePercent)),
@@ -189,6 +193,89 @@ export default function HomePage() {
     }
   };
 
+  useEffect(() => {
+    const loadSharedRoadmap = async () => {
+      const supabase = await getSupabaseClientAsync();
+      if (!supabase) {
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("roadmap_state")
+        .select("payload")
+        .eq("id", 1)
+        .maybeSingle();
+
+      if (error || !data?.payload) {
+        return;
+      }
+
+      const payload = data.payload as Partial<SharedRoadmapPayload>;
+
+      if (payload.locale) {
+        setLocale(payload.locale);
+      }
+
+      if (payload.baseline) {
+        setBaseline(payload.baseline);
+      }
+
+      if (Array.isArray(payload.tasks)) {
+        setTasks(payload.tasks);
+      }
+
+      if (typeof payload.trafficChangePercent === "number") {
+        setTrafficChangePercent(payload.trafficChangePercent);
+      }
+
+      if (payload.pmData && typeof payload.pmData === "object") {
+        setPMData(payload.pmData);
+      }
+      setSharedStatus(locale === "ru" ? "Загружен общий roadmap" : "Loaded shared roadmap");
+    };
+
+    void loadSharedRoadmap();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const saveSharedRoadmap = async () => {
+    const supabase = await getSupabaseClientAsync();
+    if (!supabase) {
+      setSharedStatus(locale === "ru" ? "Supabase не настроен" : "Supabase is not configured");
+      return;
+    }
+
+    const payload: SharedRoadmapPayload = {
+      baseline,
+      tasks,
+      trafficChangePercent,
+      locale,
+      pmData,
+    };
+
+    setSharedStatus(locale === "ru" ? "Сохранение..." : "Saving...");
+
+    const updated = { payload, updated_at: new Date().toISOString() };
+    const { data: existing } = await supabase
+      .from("roadmap_state")
+      .select("id")
+      .eq("id", 1)
+      .maybeSingle();
+
+    const { error } = existing
+      ? await supabase.from("roadmap_state").update(updated).eq("id", 1)
+      : await supabase.from("roadmap_state").insert(updated);
+
+    if (error) {
+      setSharedStatus(
+        (locale === "ru" ? "Ошибка сохранения: " : "Failed to save: ") + error.message,
+      );
+      return;
+    }
+
+    setSharedStatus(locale === "ru" ? "Общий roadmap сохранён" : "Shared roadmap saved");
+  };
+
   return (
     <main className="page-shell">
       <section className="hero">
@@ -197,29 +284,30 @@ export default function HomePage() {
           <h1>{text.heroTitle}</h1>
           <p className="hero-text">{text.heroDescription}</p>
         </div>
-
-        <div className="toolbar">
-          <label className="traffic-control">
-            <span>{text.language}</span>
-            <select value={locale} onChange={(event) => setLocale(event.target.value as "ru" | "en")}>
-              <option value="ru">RU</option>
-              <option value="en">EN</option>
-            </select>
-          </label>
-          <label className="traffic-control">
-            <span>{text.trafficChange}</span>
-            <input
-              type="number"
-              step="0.1"
-              value={trafficChangePercent}
-              onChange={(event) => setTrafficChangePercent(Number(event.target.value))}
-            />
-          </label>
-          <button className="primary-button" onClick={exportWorkbook} type="button">
-            {text.export}
-          </button>
-        </div>
       </section>
+
+      <div className="action-bar-sticky">
+        <div className="action-bar toolbar">
+          <div className="toolbar-group">
+            <label className="traffic-control">
+              <span>{text.language}</span>
+              <select value={locale} onChange={(event) => setLocale(event.target.value as "ru" | "en")}>
+                <option value="ru">RU</option>
+                <option value="en">EN</option>
+              </select>
+            </label>
+            <button className="ghost-button" onClick={exportWorkbook} type="button">
+              {text.export}
+            </button>
+          </div>
+          <div className="toolbar-group">
+            {sharedStatus ? <span className="toolbar-status-inline">{sharedStatus}</span> : null}
+            <button className="primary-button save-roadmap-button" onClick={saveSharedRoadmap} type="button">
+              {locale === "ru" ? "Сохранить общий roadmap" : "Save shared roadmap"}
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="tab-bar">
         <button
@@ -250,6 +338,7 @@ export default function HomePage() {
               setSelectedStageFilter((current) => (current === stage ? "" : stage))
             }
             trafficChangePercent={trafficChangePercent}
+            onTrafficChangePercent={setTrafficChangePercent}
             baselineGross={baselineSimulation.annual.grossRevenue}
             projectedGross={projectedSimulation.annual.grossRevenue}
             baselineNet={baselineSimulation.annual.netRevenue}

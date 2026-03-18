@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/write-supabase-config.js && next build",
     "start": "node scripts/portable-server.cjs out --open",
     "portable:serve": "node scripts/portable-server.cjs out --open",
     "portable:build": "npm run build && node scripts/build-portable.mjs",
@@ -16,6 +16,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@supabase/supabase-js": "^2.99.2",
     "clsx": "^2.1.1",
     "next": "^16.1.6",
     "react": "^19.2.4",
