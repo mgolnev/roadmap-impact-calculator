@@ -202,47 +202,83 @@ export default function HomePage() {
   };
 
   useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+
+    const applyPayloadAndStatus = (
+      data: { payload: Partial<SharedRoadmapPayload>; updated_at?: string | null },
+      loc: "ru" | "en",
+    ) => {
+      const p = data.payload;
+      if (p?.locale) setLocale(p.locale);
+      if (p?.baseline) setBaseline(p.baseline);
+      if (Array.isArray(p?.tasks)) setTasks(p.tasks);
+      if (typeof p?.trafficChangePercent === "number") setTrafficChangePercent(p.trafficChangePercent);
+      if (p?.pmData && typeof p.pmData === "object") setPMData(p.pmData);
+
+      const timeStr = data.updated_at
+        ? new Date(data.updated_at).toLocaleTimeString(loc === "ru" ? "ru-RU" : "en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+          })
+        : "";
+      setSharedStatus(
+        timeStr
+          ? loc === "ru"
+            ? `Роадмап сохранён в ${timeStr}`
+            : `Roadmap saved at ${timeStr}`
+          : loc === "ru"
+            ? "Загружен общий roadmap"
+            : "Loaded shared roadmap",
+      );
+    };
+
     const loadSharedRoadmap = async () => {
       const supabase = await getSupabaseClientAsync();
-      if (!supabase) {
-        return;
-      }
+      if (!supabase) return;
 
       const { data, error } = await supabase
         .from("roadmap_state")
-        .select("payload")
+        .select("payload, updated_at")
         .eq("id", 1)
         .maybeSingle();
 
-      if (error || !data?.payload) {
-        return;
-      }
+      if (error || !data?.payload) return;
 
       const payload = data.payload as Partial<SharedRoadmapPayload>;
+      const loc = (payload.locale as "ru" | "en") || locale;
+      applyPayloadAndStatus(data, loc);
 
-      if (payload.locale) {
-        setLocale(payload.locale);
-      }
-
-      if (payload.baseline) {
-        setBaseline(payload.baseline);
-      }
-
-      if (Array.isArray(payload.tasks)) {
-        setTasks(payload.tasks);
-      }
-
-      if (typeof payload.trafficChangePercent === "number") {
-        setTrafficChangePercent(payload.trafficChangePercent);
-      }
-
-      if (payload.pmData && typeof payload.pmData === "object") {
-        setPMData(payload.pmData);
-      }
-      setSharedStatus(locale === "ru" ? "Загружен общий roadmap" : "Loaded shared roadmap");
+      const ch = supabase
+        .channel("roadmap_state_changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "roadmap_state",
+            filter: "id=eq.1",
+          },
+          (ev) => {
+            const row = ev.new as { payload?: Partial<SharedRoadmapPayload>; updated_at?: string } | null;
+            if (!row?.payload) return;
+            const ploc = (row.payload.locale as "ru" | "en") || "ru";
+            applyPayloadAndStatus(
+              { payload: row.payload, updated_at: row.updated_at ?? null },
+              ploc,
+            );
+          },
+        )
+        .subscribe();
+      unsubscribe = () => supabase.removeChannel(ch);
     };
 
     void loadSharedRoadmap();
+
+    return () => {
+      unsubscribe?.();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -281,7 +317,15 @@ export default function HomePage() {
       return;
     }
 
-    setSharedStatus(locale === "ru" ? "Общий roadmap сохранён" : "Shared roadmap saved");
+    const timeStr = new Date().toLocaleTimeString(locale === "ru" ? "ru-RU" : "en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    setSharedStatus(
+      locale === "ru" ? `Роадмап сохранён в ${timeStr}` : `Roadmap saved at ${timeStr}`,
+    );
   };
 
   return (

@@ -296,6 +296,16 @@ npm run portable:build
 - macOS: `portable/run-macos.command`
 - Windows: `portable/run-windows.bat`
 
+### Общий roadmap (Supabase)
+
+Если настроен Supabase (см. `.env.example`), приложение сохраняет и загружает общий roadmap в таблицу `roadmap_state`. Для **real-time** обновлений (когда другой пользователь сохраняет) нужно включить Realtime для этой таблицы:
+
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE roadmap_state;
+```
+
+Или в Supabase Dashboard: Database → Publications → `supabase_realtime` → включить `roadmap_state`.
+
 ### Ограничения текущей версии
 
 - месячная база сейчас делится равномерно на 12 месяцев
@@ -600,6 +610,16 @@ After that:
 
 - macOS: `portable/run-macos.command`
 - Windows: `portable/run-windows.bat`
+
+### Shared roadmap (Supabase)
+
+If Supabase is configured (see `.env.example`), the app saves and loads the shared roadmap from the `roadmap_state` table. For **real-time** updates when another user saves, enable Realtime for this table:
+
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE roadmap_state;
+```
+
+Or in Supabase Dashboard: Database → Publications → `supabase_realtime` → enable `roadmap_state`.
 
 ### Current limitations
 
