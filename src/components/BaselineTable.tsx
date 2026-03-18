@@ -207,8 +207,8 @@ export function BaselineTable({ baseline, locale, onChange, onReset }: BaselineT
           <strong>{formatCurrency(derived.grossRevenue)}</strong>
         </div>
         <div className="field-card read-only">
-          <span>{text.ordersUnits}</span>
-          <strong>{formatNumber(derived.orderUnits)}</strong>
+          <span>{text.grossOrders}</span>
+          <strong>{formatNumber(derived.absolute.orders)}</strong>
         </div>
         <div className="field-card read-only">
           <span>{text.asp}</span>

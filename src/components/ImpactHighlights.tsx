@@ -10,6 +10,8 @@ type ImpactHighlightsProps = {
   tasks: Task[];
   selectedStageFilter: AdjustableStage | "";
   onSelectStageFilter: (stage: AdjustableStage | "") => void;
+  selectedProjectFilter: string;
+  onSelectProjectFilter: (project: string) => void;
   trafficChangePercent: number;
   onTrafficChangePercent: (value: number) => void;
   baselineNet: number;
@@ -301,16 +303,34 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
           <div className="top-tasks-title">
             {text.topTasksTitle} ({props.topTasks.reduce((acc, task) => acc + task.taskCount, 0)} {text.tasksShort})
           </div>
+          {props.selectedProjectFilter ? (
+            <button
+              className="ghost-button"
+              type="button"
+              onClick={() => props.onSelectProjectFilter("")}
+            >
+              {text.clearFilters}
+            </button>
+          ) : null}
         </div>
         <div className="top-tasks-subtitle">{text.topTasksHint}</div>
         <div className="top-tasks-list">
           {props.topTasks.length > 0 ? (
             props.topTasks.map((task, index) => (
               <div className="top-task-item" key={task.projectName}>
-                <span>
-                  <span className="top-task-rank">{index + 1}</span>
-                  {task.projectName} ({task.taskCount} {text.tasksShort})
-                </span>
+                <div className="metric-filter-cell">
+                  <span>
+                    <span className="top-task-rank">{index + 1}</span>
+                    {task.projectName}
+                  </span>
+                  <button
+                    className={`metric-filter-button ${props.selectedProjectFilter === task.projectName ? "active" : ""}`}
+                    type="button"
+                    onClick={() => props.onSelectProjectFilter(task.projectName)}
+                  >
+                    ({task.taskCount} {text.tasksShort})
+                  </button>
+                </div>
                 <strong className={task.value >= 0 ? "delta-positive" : "delta-negative"}>{formatCurrency(task.value)}</strong>
               </div>
             ))

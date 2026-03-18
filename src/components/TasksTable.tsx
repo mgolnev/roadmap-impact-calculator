@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { getImpactTypeLabels, getMonthLabel, getPriorityLabels, getStageLabels, getText } from "@/lib/i18n";
@@ -14,8 +14,10 @@ type TasksTableProps = {
   importState: { type: "success" | "error"; message: string } | null;
   activeImport: "tasks" | "scenario" | null;
   stageFilter: AdjustableStage | "";
-  onUpdate: <K extends keyof Task>(id: string, key: K, value: Task[K]) => void;
   onStageFilterChange: (stage: AdjustableStage | "") => void;
+  projectFilter: string;
+  onProjectFilterChange: (project: string) => void;
+  onUpdate: <K extends keyof Task>(id: string, key: K, value: Task[K]) => void;
   onSetAllActive: (active: boolean) => void;
   onAdd: () => void;
   onDownloadScenario: () => void;
@@ -212,8 +214,10 @@ export function TasksTable({
   importState,
   activeImport,
   stageFilter,
-  onUpdate,
   onStageFilterChange,
+  projectFilter,
+  onProjectFilterChange,
+  onUpdate,
   onSetAllActive,
   onAdd,
   onDownloadScenario,
@@ -224,7 +228,8 @@ export function TasksTable({
   onDuplicate,
 }: TasksTableProps) {
   const [searchValue, setSearchValue] = useState("");
-  const [projectFilter, setProjectFilter] = useState("");
+  const setProjectFilter = onProjectFilterChange;
+  const [monthFilter, setMonthFilter] = useState<number | "">("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scenarioFileInputRef = useRef<HTMLInputElement | null>(null);
   const text = getText(locale);
@@ -242,16 +247,43 @@ export function TasksTable({
       const matchesProject = !projectFilter || projectName === projectFilter;
       const matchesStage =
         !stageFilter || task.stage1 === stageFilter || task.stage2 === stageFilter;
+      const matchesMonth = monthFilter === "" || task.releaseMonth === monthFilter;
       const haystack = `${projectName} ${task.taskName} ${task.comment}`.toLowerCase();
       const matchesSearch = !query || haystack.includes(query);
 
-      return matchesProject && matchesStage && matchesSearch;
+      return matchesProject && matchesStage && matchesMonth && matchesSearch;
     });
-  }, [projectFilter, searchValue, stageFilter, tasks, text.noProject]);
+  }, [monthFilter, projectFilter, searchValue, stageFilter, tasks, text.noProject]);
   const activeTasksCount = useMemo(
     () => filteredTasks.filter((task) => task.active).length,
     [filteredTasks],
   );
+
+  const hasActiveFilters = !!(searchValue.trim() || projectFilter || stageFilter || monthFilter);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) {
+        setActionsOpen(false);
+      }
+    };
+    if (actionsOpen) {
+      document.addEventListener("click", handleClickOutside);
+    }
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [actionsOpen]);
+
+  useEffect(() => {
+    if (!hasActiveFilters || filteredTasks.length >= tasks.length) {
+      return;
+    }
+    setToastVisible(true);
+    const t = setTimeout(() => setToastVisible(false), 3000);
+    return () => clearTimeout(t);
+  }, [hasActiveFilters, filteredTasks.length, tasks.length]);
 
   return (
     <section className="section-card">
@@ -264,13 +296,13 @@ export function TasksTable({
       <div className="tasks-filters">
         <div className="filters-row filters-row-primary">
           <input
-            className="cell-input"
+            className={`cell-input ${searchValue.trim() ? "filter-active" : ""}`}
             placeholder={text.taskSearchPlaceholder}
             value={searchValue}
             onChange={(event) => setSearchValue(event.target.value)}
           />
           <select
-            className="cell-input"
+            className={`cell-input ${projectFilter ? "filter-active" : ""}`}
             value={projectFilter}
             onChange={(event) => setProjectFilter(event.target.value)}
           >
@@ -282,7 +314,7 @@ export function TasksTable({
             ))}
           </select>
           <select
-            className="cell-input"
+            className={`cell-input ${stageFilter ? "filter-active" : ""}`}
             value={stageFilter}
             onChange={(event) => onStageFilterChange(normalizeStage(event.target.value) ?? "")}
           >
@@ -293,15 +325,30 @@ export function TasksTable({
               </option>
             ))}
           </select>
+          <select
+            className={`cell-input ${monthFilter ? "filter-active" : ""}`}
+            value={monthFilter}
+            onChange={(event) =>
+              setMonthFilter(event.target.value === "" ? "" : Number(event.target.value))
+            }
+          >
+            <option value="">{text.allMonths}</option>
+            {Array.from({ length: 12 }, (_, i) => (
+              <option key={i + 1} value={i + 1}>
+                {getMonthLabel(locale, i + 1)}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="filters-row filters-row-secondary">
           <button
-            className="ghost-button"
+            className={`ghost-button clear-filters-button ${searchValue.trim() || projectFilter || stageFilter || monthFilter ? "primary-button" : ""}`}
             type="button"
             onClick={() => {
               setSearchValue("");
-              setProjectFilter("");
+              onProjectFilterChange("");
+              setMonthFilter("");
               onStageFilterChange("");
             }}
           >
@@ -351,38 +398,75 @@ export function TasksTable({
           </button>
         </div>
 
-        <span className="toolbar-divider" />
-
-        <div className="toolbar-group">
-          <button className="ghost-button" onClick={onDownloadScenario} type="button">
-            {text.saveScenario}
-          </button>
+        <div className="toolbar-group actions-dropdown" ref={actionsRef}>
           <button
-            className="ghost-button"
-            onClick={() => scenarioFileInputRef.current?.click()}
-            disabled={activeImport !== null}
+            className="primary-button actions-trigger"
             type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActionsOpen((v) => !v);
+            }}
           >
-            {activeImport === "scenario" ? text.importInProgress : text.loadScenario}
+            {text.actions}
+            <span className="actions-chevron">▼</span>
           </button>
-          <button className="ghost-button" onClick={onDownloadTemplate} type="button">
-            {text.downloadTemplate}
-          </button>
-          <button
-            className="ghost-button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={activeImport !== null}
-            type="button"
-          >
-            {activeImport === "tasks" ? text.importInProgress : text.importFromExcel}
-          </button>
+          {actionsOpen ? (
+            <div className="actions-menu">
+              <button
+                type="button"
+                className="actions-menu-item"
+                onClick={() => {
+                  onDownloadScenario();
+                  setActionsOpen(false);
+                }}
+              >
+                {text.saveScenario}
+              </button>
+              <button
+                type="button"
+                className="actions-menu-item"
+                disabled={activeImport !== null}
+                onClick={() => {
+                  scenarioFileInputRef.current?.click();
+                  setActionsOpen(false);
+                }}
+              >
+                {activeImport === "scenario" ? text.importInProgress : text.loadScenario}
+              </button>
+              <button
+                type="button"
+                className="actions-menu-item"
+                onClick={() => {
+                  onDownloadTemplate();
+                  setActionsOpen(false);
+                }}
+              >
+                {text.downloadTemplate}
+              </button>
+              <button
+                type="button"
+                className="actions-menu-item"
+                disabled={activeImport !== null}
+                onClick={() => {
+                  fileInputRef.current?.click();
+                  setActionsOpen(false);
+                }}
+              >
+                {activeImport === "tasks" ? text.importInProgress : text.importFromExcel}
+              </button>
+              <button
+                type="button"
+                className="actions-menu-item actions-menu-item-primary"
+                onClick={() => {
+                  onAdd();
+                  setActionsOpen(false);
+                }}
+              >
+                {text.addTask}
+              </button>
+            </div>
+          ) : null}
         </div>
-
-        <span className="toolbar-divider" />
-
-        <button className="primary-button" onClick={onAdd} type="button">
-          {text.addTask}
-        </button>
       </div>
 
       {importState ? (
@@ -391,7 +475,9 @@ export function TasksTable({
 
       <div className="filters-summary">
         {text.shownTasks}: {filteredTasks.length} / {tasks.length}
+        {projectFilter ? ` • ${text.project}: ${projectFilter}` : ""}
         {stageFilter ? ` • ${text.filterByMetric}: ${stageLabels[stageFilter]}` : ""}
+        {monthFilter ? ` • ${text.effectStart}: ${getMonthLabel(locale, monthFilter)}` : ""}
       </div>
 
       <div className="table-wrap">
@@ -519,6 +605,12 @@ export function TasksTable({
 
       {filteredTasks.length === 0 ? (
         <div className="toolbar-status">{text.noTasksForFilter}</div>
+      ) : null}
+
+      {toastVisible ? (
+        <div className="toast" role="status">
+          {text.tasksFilteredToast}
+        </div>
       ) : null}
     </section>
   );

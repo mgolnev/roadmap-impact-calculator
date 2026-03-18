@@ -203,8 +203,8 @@ export const buildRoadmapImpactWorkbook = ({
       funnelValue: derivedBaseline.netRevenue,
     },
     {
-      metric: text.ordersUnits,
-      funnelValue: derivedBaseline.orderUnits,
+      metric: text.grossOrders,
+      funnelValue: derivedBaseline.absolute.orders,
     },
     {
       metric: text.asp,

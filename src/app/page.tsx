@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 
 import { AnnualFunnelTable } from "@/components/AnnualFunnelTable";
@@ -47,8 +47,10 @@ export default function HomePage() {
   const [importState, setImportState] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [activeImport, setActiveImport] = useState<"tasks" | "scenario" | null>(null);
   const [selectedStageFilter, setSelectedStageFilter] = useState<AdjustableStage | "">("");
+  const [selectedProjectFilter, setSelectedProjectFilter] = useState("");
   const [activeTab, setActiveTab] = useState<"business" | "pm">("business");
   const [sharedStatus, setSharedStatus] = useState<string | null>(null);
+  const tasksSectionRef = useRef<HTMLDivElement>(null);
 
   const baselineSimulation = useMemo(
     () => simulateScenario(baseline, [], getTrafficMultiplier(trafficChangePercent)),
@@ -97,6 +99,12 @@ export default function HomePage() {
     ,
     [locale, taskMetrics, tasks],
   );
+
+  useEffect(() => {
+    if (selectedProjectFilter || selectedStageFilter) {
+      tasksSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedProjectFilter, selectedStageFilter]);
 
   const exportWorkbook = () => {
     const workbook = buildRoadmapImpactWorkbook({
@@ -296,11 +304,11 @@ export default function HomePage() {
                 <option value="en">EN</option>
               </select>
             </label>
-            <button className="ghost-button" onClick={exportWorkbook} type="button">
+            <button className="ghost-button action-bar-export" onClick={exportWorkbook} type="button">
               {text.export}
             </button>
           </div>
-          <div className="toolbar-group">
+          <div className="toolbar-group toolbar-group-gap">
             {sharedStatus ? <span className="toolbar-status-inline">{sharedStatus}</span> : null}
             <button className="primary-button save-roadmap-button" onClick={saveSharedRoadmap} type="button">
               {locale === "ru" ? "Сохранить общий roadmap" : "Save shared roadmap"}
@@ -337,6 +345,10 @@ export default function HomePage() {
             onSelectStageFilter={(stage) =>
               setSelectedStageFilter((current) => (current === stage ? "" : stage))
             }
+            selectedProjectFilter={selectedProjectFilter}
+            onSelectProjectFilter={(project) =>
+              setSelectedProjectFilter((current) => (current === project ? "" : project))
+            }
             trafficChangePercent={trafficChangePercent}
             onTrafficChangePercent={setTrafficChangePercent}
             baselineGross={baselineSimulation.annual.grossRevenue}
@@ -352,6 +364,7 @@ export default function HomePage() {
             topTasks={topTasks}
           />
 
+          <div ref={tasksSectionRef}>
           <TasksTable
             locale={locale}
             tasks={tasks}
@@ -359,8 +372,10 @@ export default function HomePage() {
             importState={importState}
             activeImport={activeImport}
             stageFilter={selectedStageFilter}
-            onUpdate={updateTask}
             onStageFilterChange={setSelectedStageFilter}
+            projectFilter={selectedProjectFilter}
+            onProjectFilterChange={setSelectedProjectFilter}
+            onUpdate={updateTask}
             onSetAllActive={setAllTasksActive}
             onAdd={addTask}
             onDownloadScenario={exportScenarioBackup}
@@ -370,6 +385,7 @@ export default function HomePage() {
             onRemove={removeTask}
             onDuplicate={duplicateTask}
           />
+          </div>
 
           <details className="section-card details-card">
             <summary>{text.detailedAnnual}</summary>
