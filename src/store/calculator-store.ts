@@ -18,6 +18,7 @@ type StoreState = {
   addTask: () => void;
   removeTask: (id: string) => void;
   duplicateTask: (id: string) => void;
+  reorderTasks: (draggedId: string, targetId: string) => void;
   setTrafficChangePercent: (value: number) => void;
   setLocale: (locale: Locale) => void;
 };
@@ -104,6 +105,18 @@ export const useCalculatorStore = create<StoreState>()(
               ...state.tasks,
             ],
           };
+        }),
+      reorderTasks: (draggedId, targetId) =>
+        set((state) => {
+          const fromIdx = state.tasks.findIndex((t) => t.id === draggedId);
+          const toIdx = state.tasks.findIndex((t) => t.id === targetId);
+          if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return state;
+
+          const next = [...state.tasks];
+          const [removed] = next.splice(fromIdx, 1);
+          const insertIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+          next.splice(insertIdx, 0, removed);
+          return { tasks: next };
         }),
       setTrafficChangePercent: (value) =>
         set({

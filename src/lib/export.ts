@@ -7,8 +7,18 @@ import {
   getTrafficMultiplier,
   simulateScenario,
 } from "@/lib/calculations";
-import { getImpactTypeLabels, getMonthLabel, getPriorityLabels, getStageLabels, getText } from "@/lib/i18n";
-import { BaselineInput, Locale, Task, TaskValueMetrics } from "@/lib/types";
+import { buildAnnualFunnelComparisonRows } from "@/lib/funnel-comparison";
+import { getMonthLabel, getPriorityLabels, getStageLabels, getText } from "@/lib/i18n";
+import { BaselineInput, ImpactType, Locale, Task, TaskValueMetrics } from "@/lib/types";
+
+const shortImpactTypeLabel = (locale: Locale, type: ImpactType | undefined): string => {
+  if (!type) return "";
+  const map: Record<Locale, Record<ImpactType, string>> = {
+    ru: { relative_percent: "%", absolute_pp: "п.п.", absolute_value: "abs" },
+    en: { relative_percent: "%", absolute_pp: "p.p.", absolute_value: "abs" },
+  };
+  return map[locale][type];
+};
 
 type ExportWorkbookParams = {
   locale: Locale;
@@ -74,28 +84,28 @@ const conversionRows = (
   },
 ];
 
-const annualExportRows = (
-  label: string,
-  annual: ReturnType<typeof simulateScenario>["annual"],
-) => [
-  {
-    scenario: label,
-    sessions: annual.sessions,
-    catalog: annual.catalog,
-    pdp: annual.pdp,
-    atc: annual.atc,
-    checkout: annual.checkout,
-    orders: annual.orders,
-    grossRevenue: annual.grossRevenue,
-    netRevenue: annual.netRevenue,
-    catalogCr: annual.rates.catalogCr,
-    pdpCr: annual.rates.pdpCr,
-    atcCr: annual.rates.atcCr,
-    checkoutCr: annual.rates.checkoutCr,
-    orderCr: annual.rates.orderCr,
-    orderToSessions: annual.toSessionsRates.orderCr,
-  },
-];
+const buildTopProjectsForExport = (
+  locale: Locale,
+  tasks: Task[],
+  taskMetrics: Record<string, TaskValueMetrics>,
+  noProjectLabel: string,
+) => {
+  const rows = Array.from(
+    tasks
+      .filter((task) => task.active)
+      .reduce((acc, task) => {
+        const key = task.project.trim() || noProjectLabel;
+        const current = acc.get(key) ?? { project: key, netRevenueContribution: 0, taskCount: 0 };
+        current.netRevenueContribution += taskMetrics[task.id]?.incrementalCurrent ?? 0;
+        current.taskCount += 1;
+        acc.set(key, current);
+        return acc;
+      }, new Map<string, { project: string; netRevenueContribution: number; taskCount: number }>())
+      .values(),
+  ).sort((a, b) => b.netRevenueContribution - a.netRevenueContribution);
+
+  return rows;
+};
 
 export const buildRoadmapImpactWorkbook = ({
   locale,
@@ -107,7 +117,6 @@ export const buildRoadmapImpactWorkbook = ({
   const workbook = XLSX.utils.book_new();
   const text = getText(locale);
   const stageLabels = getStageLabels(locale);
-  const impactTypeLabels = getImpactTypeLabels(locale);
   const priorityLabels = getPriorityLabels(locale);
   const trafficMultiplier = getTrafficMultiplier(trafficChangePercent);
   const baselineSimulation = simulateScenario(baseline, [], trafficMultiplier);
@@ -115,15 +124,8 @@ export const buildRoadmapImpactWorkbook = ({
   const fullyImplemented = getFullyImplementedRates(baseline, tasks);
   const derivedBaseline = deriveBaseline(baseline);
   const baseRates = getBaseRates(baseline);
-  const topTasks = tasks
-    .filter((task) => task.active)
-    .map((task) => ({
-      taskName: task.taskName,
-      project: task.project,
-      contribution: taskMetrics[task.id]?.incrementalCurrent ?? 0,
-    }))
-    .sort((a, b) => b.contribution - a.contribution)
-    .slice(0, 10);
+  const noProjectLabel = locale === "ru" ? "Без проекта" : "No project";
+  const topProjects = buildTopProjectsForExport(locale, tasks, taskMetrics, noProjectLabel);
 
   const summarySheet = XLSX.utils.json_to_sheet([
     {
@@ -212,62 +214,121 @@ export const buildRoadmapImpactWorkbook = ({
     },
   ]);
 
-  const impactSheet = XLSX.utils.json_to_sheet(
-    conversionRows(locale, baselineSimulation.annual, projectedSimulation.annual, fullyImplemented),
+  const annualFunnelRows = buildAnnualFunnelComparisonRows(
+    locale,
+    text,
+    stageLabels,
+    baselineSimulation.annual,
+    projectedSimulation.annual,
+  );
+  const conversionData = conversionRows(
+    locale,
+    baselineSimulation.annual,
+    projectedSimulation.annual,
+    fullyImplemented,
+  );
+  const impactSectionTitle =
+    locale === "ru" ? "Среднегодовая воронка (база → после roadmap)" : "Annual funnel (baseline → after roadmap)";
+  const conversionSectionTitle =
+    locale === "ru" ? "Конверсии по шагам (база, полное внедрение, средняя за год)" : "Step conversions (base, full rollout, annual avg.)";
+  const impactAoa: (string | number)[][] = [
+    [impactSectionTitle],
+    [text.metric, text.base, text.afterTasks, text.delta],
+    ...annualFunnelRows.map((r) => [r.metric, r.baseline, r.afterTasks, r.delta]),
+    [],
+    [conversionSectionTitle],
+    [
+      locale === "ru" ? "Этап" : "Step",
+      locale === "ru" ? "База" : "Base",
+      locale === "ru" ? "После внедрения" : "Fully implemented",
+      locale === "ru" ? "Средняя за год" : "Annual average",
+      locale === "ru" ? "Δ шага" : "Δ step",
+      locale === "ru" ? "Δ к году" : "Δ annual",
+    ],
+    ...conversionData.map((r) => [
+      r.stage,
+      r.base,
+      r.fullyImplemented,
+      r.annualAverage,
+      r.stepDelta,
+      r.annualDelta,
+    ]),
+  ];
+  const impactSheet = XLSX.utils.aoa_to_sheet(impactAoa);
+
+  const topProjectsHeaders =
+    locale === "ru"
+      ? { project: "Проект", netRevenueContribution: "Вклад в Net revenue (план)", taskCount: "Задач в проекте" }
+      : { project: "Project", netRevenueContribution: "Net revenue contribution (plan)", taskCount: "Tasks in project" };
+  const topProjectsSheet = XLSX.utils.json_to_sheet(
+    topProjects.length
+      ? topProjects.map((r) => ({
+          [topProjectsHeaders.project]: r.project,
+          [topProjectsHeaders.netRevenueContribution]: r.netRevenueContribution,
+          [topProjectsHeaders.taskCount]: r.taskCount,
+        }))
+      : [{ [topProjectsHeaders.project]: locale === "ru" ? "—" : "—", [topProjectsHeaders.netRevenueContribution]: 0, [topProjectsHeaders.taskCount]: 0 }],
   );
 
-  const topTasksSheet = XLSX.utils.json_to_sheet(topTasks);
+  const taskCol =
+    locale === "ru"
+      ? {
+          project: "Проект",
+          taskName: "Задача",
+          priority: "Приоритет",
+          stage1: "Этап 1",
+          impact1Type: "Тип 1",
+          impact1Value: "Значение 1",
+          stage2: "Этап 2",
+          impact2Type: "Тип 2",
+          impact2Value: "Значение 2",
+          releaseMonth: "Старт эффекта",
+          monthsActive: "Мес. активности",
+          standaloneBase: "Standalone, ₽",
+          valuePerMonth: "₽ / мес.",
+          comment: "Комментарий",
+        }
+      : {
+          project: "Project",
+          taskName: "Task",
+          priority: "Priority",
+          stage1: "Stage 1",
+          impact1Type: "Type 1",
+          impact1Value: "Value 1",
+          stage2: "Stage 2",
+          impact2Type: "Type 2",
+          impact2Value: "Value 2",
+          releaseMonth: "Effect start",
+          monthsActive: "Active months",
+          standaloneBase: "Standalone",
+          valuePerMonth: "Per month",
+          comment: "Comment",
+        };
 
   const tasksSheet = XLSX.utils.json_to_sheet(
     tasks.map((task) => ({
-      active: task.active,
-      project: task.project,
-      taskName: task.taskName,
-      priority: priorityLabels[task.priority],
-      stage1: task.stage1 ? stageLabels[task.stage1] : "",
-      impact1Type: task.impact1Type ? impactTypeLabels[task.impact1Type] : "",
-      impact1Value: task.impact1Value,
-      stage2: task.stage2 ? stageLabels[task.stage2] : "",
-      impact2Type: task.impact2Type ? impactTypeLabels[task.impact2Type] : "",
-      impact2Value: task.impact2Value,
-      releaseMonth: getMonthLabel(locale, task.releaseMonth),
-      monthsActive: taskMetrics[task.id]?.monthsActive ?? 0,
-      standaloneBase: taskMetrics[task.id]?.standaloneBase ?? 0,
-      incrementalCurrent: taskMetrics[task.id]?.incrementalCurrent ?? 0,
-      valuePerMonth: taskMetrics[task.id]?.valuePerMonth ?? 0,
-      comment: task.comment,
-    })),
-  );
-
-  const annualSheet = XLSX.utils.json_to_sheet([
-    ...annualExportRows(text.base, baselineSimulation.annual),
-    ...annualExportRows(text.afterTasks, projectedSimulation.annual),
-  ]);
-
-  const monthlySheet = XLSX.utils.json_to_sheet(
-    projectedSimulation.months.map((row) => ({
-      month: getMonthLabel(locale, row.month),
-      sessions: row.sessions,
-      catalog: row.catalog,
-      pdp: row.pdp,
-      atc: row.atc,
-      checkout: row.checkout,
-      orders: row.orders,
-      atv: row.atv,
-      buyoutRate: row.buyoutRate,
-      grossRevenue: row.grossRevenue,
-      netRevenue: row.netRevenue,
-      activeTasks: row.activeTaskIds.length,
+      [taskCol.project]: task.project,
+      [taskCol.taskName]: task.taskName,
+      [taskCol.priority]: priorityLabels[task.priority],
+      [taskCol.stage1]: task.stage1 ? stageLabels[task.stage1] : "",
+      [taskCol.impact1Type]: shortImpactTypeLabel(locale, task.impact1Type),
+      [taskCol.impact1Value]: task.impact1Value,
+      [taskCol.stage2]: task.stage2 ? stageLabels[task.stage2] : "",
+      [taskCol.impact2Type]: shortImpactTypeLabel(locale, task.impact2Type),
+      [taskCol.impact2Value]: task.impact2Value,
+      [taskCol.releaseMonth]: getMonthLabel(locale, task.releaseMonth),
+      [taskCol.monthsActive]: taskMetrics[task.id]?.monthsActive ?? 0,
+      [taskCol.standaloneBase]: taskMetrics[task.id]?.standaloneBase ?? 0,
+      [taskCol.valuePerMonth]: taskMetrics[task.id]?.valuePerMonth ?? 0,
+      [taskCol.comment]: task.comment,
     })),
   );
 
   XLSX.utils.book_append_sheet(workbook, summarySheet, locale === "ru" ? "Сводка" : "Summary");
   XLSX.utils.book_append_sheet(workbook, baselineSheet, locale === "ru" ? "База" : "Baseline");
   XLSX.utils.book_append_sheet(workbook, impactSheet, locale === "ru" ? "Воронка эффекта" : "Impact funnel");
-  XLSX.utils.book_append_sheet(workbook, topTasksSheet, locale === "ru" ? "Топ задач" : "Top tasks");
+  XLSX.utils.book_append_sheet(workbook, topProjectsSheet, locale === "ru" ? "Топ проектов" : "Top projects");
   XLSX.utils.book_append_sheet(workbook, tasksSheet, locale === "ru" ? "Задачи" : "Tasks");
-  XLSX.utils.book_append_sheet(workbook, annualSheet, locale === "ru" ? "Годовая воронка" : "Annual funnel");
-  XLSX.utils.book_append_sheet(workbook, monthlySheet, locale === "ru" ? "Помесячная модель" : "Monthly model");
 
   return workbook;
 };

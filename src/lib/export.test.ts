@@ -56,10 +56,8 @@ describe("buildRoadmapImpactWorkbook", () => {
       "Сводка",
       "База",
       "Воронка эффекта",
-      "Топ задач",
+      "Топ проектов",
       "Задачи",
-      "Годовая воронка",
-      "Помесячная модель",
     ]);
 
     const summaryRows = XLSX.utils.sheet_to_json<Record<string, number>>(
@@ -68,22 +66,30 @@ describe("buildRoadmapImpactWorkbook", () => {
     const baselineRows = XLSX.utils.sheet_to_json<Record<string, number | string>>(
       workbook.Sheets["База"],
     );
-    const impactRows = XLSX.utils.sheet_to_json<Record<string, number | string>>(
+    const impactMatrix = XLSX.utils.sheet_to_json<Record<string, string | number>>(
       workbook.Sheets["Воронка эффекта"],
+      { header: 1, defval: "" },
+    ) as unknown as (string | number)[][];
+    const topProjectsRows = XLSX.utils.sheet_to_json<Record<string, number | string>>(
+      workbook.Sheets["Топ проектов"],
     );
     const tasksRows = XLSX.utils.sheet_to_json<Record<string, number | string | boolean>>(
       workbook.Sheets["Задачи"],
-    );
-    const monthlyRows = XLSX.utils.sheet_to_json<Record<string, number | string>>(
-      workbook.Sheets["Помесячная модель"],
     );
 
     expect(summaryRows[0].trafficChangePercent).toBe(15);
     expect(baselineRows.some((row) => row.metric === "Sessions")).toBe(true);
     expect(baselineRows.some((row) => row.metric === "Gross revenue")).toBe(true);
-    expect(impactRows.some((row) => row.stage === "Checkout -> Заказ")).toBe(true);
-    expect(tasksRows[0].taskName).toBe("Checkout Redesign");
-    expect(tasksRows[0].priority).toBe("P1 / высокий");
-    expect(monthlyRows).toHaveLength(12);
+    const impactFlat = impactMatrix.flat().map(String).join("\t");
+    expect(impactFlat).toContain("Checkout -> Заказ");
+    expect(impactFlat).toContain("Gross revenue");
+    expect(topProjectsRows[0]["Проект"]).toBe("New Checkout");
+    expect(topProjectsRows[0]["Вклад в Net revenue (план)"]).toBe(900);
+    expect(tasksRows[0]["Задача"]).toBe("Checkout Redesign");
+    expect(tasksRows[0]["Приоритет"]).toBe("P1 / высокий");
+    expect(tasksRows[0]["Тип 1"]).toBe("%");
+    expect(tasksRows[0]["Тип 2"]).toBe("п.п.");
+    expect("incrementalCurrent" in tasksRows[0]).toBe(false);
+    expect("active" in tasksRows[0]).toBe(false);
   });
 });

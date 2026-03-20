@@ -26,6 +26,7 @@ type TasksTableProps = {
   onImportFile: (file: File) => Promise<void>;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onReorder: (draggedId: string, targetId: string) => void;
 };
 
 const formatImpactInputValue = (
@@ -226,6 +227,7 @@ export function TasksTable({
   onImportFile,
   onRemove,
   onDuplicate,
+  onReorder,
 }: TasksTableProps) {
   const [searchValue, setSearchValue] = useState("");
   const setProjectFilter = onProjectFilterChange;
@@ -262,6 +264,7 @@ export function TasksTable({
   const hasActiveFilters = !!(searchValue.trim() || projectFilter || stageFilter || monthFilter);
   const [toastVisible, setToastVisible] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -278,6 +281,7 @@ export function TasksTable({
 
   useEffect(() => {
     if (!hasActiveFilters || filteredTasks.length >= tasks.length) {
+      setToastVisible(false);
       return;
     }
     setToastVisible(true);
@@ -484,6 +488,7 @@ export function TasksTable({
         <table className="matrix-table tasks-table">
           <thead>
             <tr>
+              <th className="sticky-col sticky-col-0 drag-col" aria-hidden />
               <th className="sticky-col sticky-col-1 checkbox-col">{text.enabled}</th>
               <th className="sticky-col sticky-col-2">{text.project}</th>
               <th className="sticky-col sticky-col-3 wide-sticky">{text.task}</th>
@@ -504,7 +509,32 @@ export function TasksTable({
               const metrics = taskMetrics[task.id];
 
               return (
-                <tr key={task.id} className={task.active ? "" : "task-row-inactive"}>
+                <tr
+                  key={task.id}
+                  className={`${task.active ? "" : "task-row-inactive"} ${dragOverId === task.id ? "drag-over" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDragOverId(task.id);
+                  }}
+                  onDragLeave={() => setDragOverId(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverId(null);
+                    const draggedId = e.dataTransfer.getData("text/plain");
+                    if (draggedId && draggedId !== task.id) onReorder(draggedId, task.id);
+                  }}
+                >
+                  <td
+                    className="sticky-col sticky-col-0 drag-cell"
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", task.id);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                  >
+                    <span className="drag-handle" aria-hidden>⋮⋮</span>
+                  </td>
                   <td className="sticky-col sticky-col-1 checkbox-cell">
                     <input
                       className="task-checkbox"
@@ -591,6 +621,7 @@ export function TasksTable({
           </tbody>
           <tfoot>
             <tr>
+              <td className="sticky-col sticky-col-0" />
               <td className="sticky-col sticky-col-1" colSpan={8}>
                 {text.totalByTasks}
               </td>

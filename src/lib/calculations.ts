@@ -250,9 +250,11 @@ export const simulateScenario = (
     const atc = pdp * atcCr;
     const checkout = atc * checkoutCr;
     const orders = checkout * orderCr;
-    const grossRevenue = orders * atv;
-    const netRevenue = grossRevenue * buyoutRate;
     const orderUnits = orders * upt;
+    /* UPT impacts revenue: higher UPT (e.g. cross-sell) typically increases basket value */
+    const uptRevenueFactor = monthlyBase.upt > 0 ? upt / monthlyBase.upt : 1;
+    const grossRevenue = orders * atv * uptRevenueFactor;
+    const netRevenue = grossRevenue * buyoutRate;
     const asp = safeDivide(grossRevenue, orderUnits);
 
     return {

@@ -109,6 +109,41 @@ describe("simulateScenario", () => {
     expect(result.annual.sessions).toBeCloseTo(1080, 6);
   });
 
+  it("applies UPT impact and updates orderUnits", () => {
+    const base = simulateScenario(baseline, [], getTrafficMultiplier(0));
+    const withUpt = simulateScenario(
+      baseline,
+      [
+        createTask({
+          id: "upt-task",
+          stage1: "upt",
+          impact1Type: "relative_percent",
+          impact1Value: 0.2,
+        }),
+      ],
+      getTrafficMultiplier(0),
+    );
+    expect(base.annual.upt).toBeCloseTo(2, 6);
+    expect(withUpt.annual.upt).toBeCloseTo(2 * 1.2, 6);
+    expect(withUpt.annual.orderUnits).toBeGreaterThan(base.annual.orderUnits);
+  });
+
+  it("UPT impact increases netRevenue so task value is non-zero", () => {
+    const metrics = getTaskValueMetrics(
+      baseline,
+      [
+        createTask({
+          id: "upt-task",
+          stage1: "upt",
+          impact1Type: "relative_percent",
+          impact1Value: 0.2,
+        }),
+      ],
+      0,
+    );
+    expect(metrics["upt-task"].standaloneBase).toBeGreaterThan(0);
+  });
+
   it("splits roadmap contribution sequentially so task values sum to total delta", () => {
     const tasks = [
       createTask({

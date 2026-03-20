@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 
@@ -41,6 +42,7 @@ export default function HomePage() {
     addTask,
     removeTask,
     duplicateTask,
+    reorderTasks,
   } = useCalculatorStore();
   const { pmData, setPMData } = usePMStore();
   const text = getText(locale);
@@ -351,6 +353,9 @@ export default function HomePage() {
             <button className="ghost-button action-bar-export" onClick={exportWorkbook} type="button">
               {text.export}
             </button>
+            <Link className="ghost-button action-bar-export" href="/report">
+              {text.ceoReportLink}
+            </Link>
           </div>
           <div className="toolbar-group toolbar-group-gap">
             {sharedStatus ? <span className="toolbar-status-inline">{sharedStatus}</span> : null}
@@ -428,6 +433,7 @@ export default function HomePage() {
             onImportFile={importTasksFromWorkbook}
             onRemove={removeTask}
             onDuplicate={duplicateTask}
+            onReorder={reorderTasks}
           />
           </div>
 
