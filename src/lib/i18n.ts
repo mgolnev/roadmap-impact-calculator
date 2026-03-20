@@ -1,4 +1,14 @@
-import { ImpactType, Locale, PhaseName, PhaseStatus, Priority } from "@/lib/types";
+import {
+  ImpactType,
+  InitiativeConfidence,
+  InitiativeEffort,
+  InitiativeImpactCategory,
+  InitiativeStatus,
+  Locale,
+  PhaseName,
+  PhaseStatus,
+  Priority,
+} from "@/lib/types";
 
 export const MONTH_LABELS: Record<Locale, string[]> = {
   ru: ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"],
@@ -62,6 +72,48 @@ export const PRIORITY_LABELS: Record<Locale, Record<Priority, string>> = {
   },
 };
 
+export const INITIATIVE_STATUS_LABELS: Record<Locale, Record<InitiativeStatus, string>> = {
+  ru: {
+    draft: "Черновик",
+    hypothesis: "Гипотеза",
+    planned: "В плане",
+    in_progress: "В работе",
+    released: "Выпущено",
+  },
+  en: {
+    draft: "Draft",
+    hypothesis: "Hypothesis",
+    planned: "Planned",
+    in_progress: "In progress",
+    released: "Released",
+  },
+};
+
+export const INITIATIVE_CONFIDENCE_LABELS: Record<Locale, Record<InitiativeConfidence, string>> = {
+  ru: { low: "Низкая", medium: "Средняя", high: "Высокая" },
+  en: { low: "Low", medium: "Medium", high: "High" },
+};
+
+export const INITIATIVE_EFFORT_LABELS: Record<Locale, Record<InitiativeEffort, string>> = {
+  ru: { s: "S", m: "M", l: "L" },
+  en: { s: "S", m: "M", l: "L" },
+};
+
+export const IMPACT_CATEGORY_LABELS: Record<Locale, Record<InitiativeImpactCategory, string>> = {
+  ru: {
+    conversion: "Конверсия",
+    aov_upt: "AOV / UPT",
+    retention: "Удержание / выкуп",
+    net_cr_cancellations: "Net CR / отмены",
+  },
+  en: {
+    conversion: "Conversion",
+    aov_upt: "AOV / UPT",
+    retention: "Retention / buyout",
+    net_cr_cancellations: "Net CR / cancellations",
+  },
+};
+
 export const TEXT = {
   ru: {
     heroEyebrow: "Roadmap Impact Calculator 2026",
@@ -97,7 +149,6 @@ export const TEXT = {
     baselineTitle: "База воронки",
     baselineDescription:
       "Введите `Sessions` руками, а по шагам воронки задайте конверсии к предыдущему шагу. Абсолюты по воронке посчитаются автоматически.",
-    resetDefaults: "Вернуть дефолтные значения",
     metric: "Метрика",
     conversionPrev: "Конверсия к предыдущему шагу",
     funnelValue: "Значение воронки",
@@ -190,6 +241,9 @@ export const TEXT = {
     priorityLowToHigh: "Приоритет: P3 -> P1",
     clearFilters: "Снять фильтры",
     tasksFilteredToast: "Задачи roadmap отфильтрованы",
+    toastTaskMovedToRoadmap: "Перенесено в roadmap: {name}",
+    toastTaskMovedToIdeas: "Перенесено в идеи: {name}",
+    toastTaskUntitled: "Без названия",
     taskSearchPlaceholder: "Поиск по задаче, проекту или комментарию",
     filterByMetric: "Фильтр по метрике",
     noTasksForFilter: "Нет задач по выбранному фильтру",
@@ -213,7 +267,43 @@ export const TEXT = {
     expand: "Развернуть",
     collapse: "Свернуть",
     tabBusiness: "Бизнес и продукт",
+    tabIdeas: "Идеи (pre-backlog)",
     tabPM: "Проджект-менеджмент",
+    preBacklogTitle: "Pre-backlog: идеи и гипотезы",
+    preBacklogDescription:
+      "Идеи живут в отдельном списке (не смешиваются с roadmap). Оценивайте потенциал (Net Δ при одиночном запуске) и переносите в основной бэклог только явной кнопкой.",
+    preBacklogNewDraftTitle: "Новая идея",
+    preBacklogAddIdeaButton: "Добавить идею",
+    preBacklogCollapseNewForm: "Свернуть",
+    preBacklogSaveIdea: "Сохранить идею",
+    preBacklogNameRequired: "Введите название идеи",
+    preBacklogOpenEdit: "Открыть",
+    preBacklogEditCard: "Редактировать",
+    preBacklogCollapse: "Свернуть",
+    preBacklogSaveEdits: "Сохранить",
+    preBacklogCancelEdit: "Отмена",
+    preBacklogDiscardConfirm: "Отменить несохранённые изменения?",
+    preBacklogPromoteSectionSummary: "Перенос в основной roadmap",
+    preBacklogEditHint: "Нажмите на карточку, чтобы изменить поля. Изменения вступают в силу после «Сохранить».",
+    preBacklogFilteredToast: "Список идей отфильтрован",
+    preBacklogSortStandaloneDesc: "Потенциал (Net Δ): от большего к меньшему",
+    preBacklogSortStandaloneAsc: "Потенциал (Net Δ): от меньшего к большему",
+    preBacklogSavedListTitle: "Сохранённые идеи",
+    preBacklogEmpty:
+      "Пока нет сохранённых идей — нажмите «Добавить идею», заполните шаблон и нажмите «Сохранить идею».",
+    preBacklogPromote: "Перенести в roadmap",
+    preBacklogPromoteHint: "Инициатива появится в основной таблице на вкладке «Бизнес и продукт».",
+    preBacklogPotentialNet: "Потенциал (Net Δ, одиночно)",
+    preBacklogPlanNote:
+      "Кнопка «В roadmap» добавляет инициативу в основной список на вкладке «Бизнес и продукт». В годовую модель попадают только задачи оттуда, со статусом Planned / In progress / Released и с включённым флажком.",
+    initiativeStatus: "Статус",
+    initiativeDescription: "Описание",
+    ideaProblemWeSolve: "Какую проблему решаем",
+    problemStatement: "Проблема",
+    impactCategory: "Тип влияния",
+    confidence: "Уверенность",
+    effort: "Effort",
+    roadmapStatusHint: "Roadmap: Planned → In progress → Released",
     pmTitle: "Трекер задач: прогресс и сроки",
     pmDescription: "Статус каждой задачи по стадиям: от PRD до подведения итогов A/B-теста. Кликните на точку стадии, чтобы переключить её статус.",
     pmStartDate: "Старт",
@@ -275,7 +365,6 @@ export const TEXT = {
     baselineTitle: "Baseline funnel",
     baselineDescription:
       "Enter `Sessions` manually, and set conversion to the previous step for each funnel stage. Absolute funnel values will be calculated automatically.",
-    resetDefaults: "Reset to default values",
     metric: "Metric",
     conversionPrev: "Conversion to previous step",
     funnelValue: "Funnel value",
@@ -368,6 +457,9 @@ export const TEXT = {
     priorityLowToHigh: "Priority: P3 -> P1",
     clearFilters: "Clear filters",
     tasksFilteredToast: "Roadmap tasks filtered",
+    toastTaskMovedToRoadmap: "Moved to roadmap: {name}",
+    toastTaskMovedToIdeas: "Moved to ideas: {name}",
+    toastTaskUntitled: "Untitled",
     taskSearchPlaceholder: "Search by task, project, or comment",
     filterByMetric: "Metric filter",
     noTasksForFilter: "No tasks match the selected filter",
@@ -391,7 +483,43 @@ export const TEXT = {
     expand: "Expand",
     collapse: "Collapse",
     tabBusiness: "Business & Product",
+    tabIdeas: "Ideas (pre-backlog)",
     tabPM: "Project Management",
+    preBacklogTitle: "Pre-backlog: ideas & hypotheses",
+    preBacklogDescription:
+      "Ideas stay in a separate list (not mixed with the roadmap). Estimate potential (standalone net Δ) and move to the main backlog only via the explicit button.",
+    preBacklogNewDraftTitle: "New idea",
+    preBacklogAddIdeaButton: "Add idea",
+    preBacklogCollapseNewForm: "Hide",
+    preBacklogSaveIdea: "Save idea",
+    preBacklogNameRequired: "Enter an idea title",
+    preBacklogOpenEdit: "Open",
+    preBacklogEditCard: "Edit",
+    preBacklogCollapse: "Collapse",
+    preBacklogSaveEdits: "Save",
+    preBacklogCancelEdit: "Cancel",
+    preBacklogDiscardConfirm: "Discard unsaved changes?",
+    preBacklogPromoteSectionSummary: "Move to main roadmap",
+    preBacklogEditHint: "Click the card to edit. Changes apply when you press “Save”.",
+    preBacklogFilteredToast: "Ideas list filtered",
+    preBacklogSortStandaloneDesc: "Potential (net Δ): high to low",
+    preBacklogSortStandaloneAsc: "Potential (net Δ): low to high",
+    preBacklogSavedListTitle: "Saved ideas",
+    preBacklogEmpty:
+      "No saved ideas yet — click “Add idea”, fill in the template, then click “Save idea”.",
+    preBacklogPromote: "Move to roadmap",
+    preBacklogPromoteHint: "The initiative will appear in the main table on the Business tab.",
+    preBacklogPotentialNet: "Potential (net Δ, standalone)",
+    preBacklogPlanNote:
+      "The button adds the initiative to the main list on the Business tab. The annual model only includes items from that list, with status Planned / In progress / Released and the enabled checkbox.",
+    initiativeStatus: "Status",
+    initiativeDescription: "Description",
+    ideaProblemWeSolve: "What problem we're solving",
+    problemStatement: "Problem statement",
+    impactCategory: "Impact type",
+    confidence: "Confidence",
+    effort: "Effort",
+    roadmapStatusHint: "Roadmap: Planned → In progress → Released",
     pmTitle: "Task tracker: progress & timelines",
     pmDescription: "Status of each task across stages: from PRD to A/B test results. Click a phase dot to cycle its status.",
     pmStartDate: "Start",

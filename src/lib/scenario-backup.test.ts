@@ -21,6 +21,12 @@ const task: Task = {
   project: "New Checkout",
   taskName: "Checkout Redesign",
   priority: "p1",
+  initiativeStatus: "planned",
+  description: "",
+  problemStatement: "",
+  impactCategory: "conversion",
+  confidence: "medium",
+  effort: "m",
   stage1: "order",
   impact1Type: "relative_percent",
   impact1Value: 0.1,
@@ -86,5 +92,29 @@ describe("scenario backup workbook", () => {
       releaseMonth: 4,
       active: true,
     });
+    expect(restored.ideas).toHaveLength(0);
+  });
+
+  it("round-trips ideas on a separate sheet", () => {
+    const idea: Task = {
+      ...task,
+      id: "idea-1",
+      taskName: "Raw idea",
+      initiativeStatus: "hypothesis",
+      priority: "p3",
+    };
+    const workbook = buildScenarioBackupWorkbook({
+      locale: "ru",
+      baseline,
+      tasks: [task],
+      ideas: [idea],
+      trafficChangePercent: 0,
+    });
+    expect(workbook.SheetNames).toContain("Идеи");
+    const file = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+    const restored = parseScenarioBackupWorkbook(file, "ru");
+    expect(restored.ideas).toHaveLength(1);
+    expect(restored.ideas[0].taskName).toBe("Raw idea");
+    expect(restored.ideas[0].initiativeStatus).toBe("hypothesis");
   });
 });

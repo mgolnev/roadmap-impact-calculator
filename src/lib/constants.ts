@@ -1,5 +1,17 @@
 import { BaselineInput, Task } from "@/lib/types";
 
+const INITIATIVE_DEFAULTS: Pick<
+  Task,
+  "initiativeStatus" | "description" | "problemStatement" | "confidence" | "effort" | "impactCategory"
+> = {
+  initiativeStatus: "planned",
+  description: "",
+  problemStatement: "",
+  confidence: "medium",
+  effort: "m",
+  impactCategory: "conversion",
+};
+
 export const DEFAULT_BASELINE: BaselineInput = {
   sessions: 32191999,
   catalogCr: 0.61,
@@ -12,8 +24,16 @@ export const DEFAULT_BASELINE: BaselineInput = {
   upt: 2.536,
 };
 
-const createTask = (task: Omit<Task, "id">, id: number): Task => ({
+type TaskSeed = Partial<Omit<Task, "id">> &
+  Pick<Task, "project" | "taskName" | "priority" | "releaseMonth" | "active" | "comment">;
+
+const createTask = (task: TaskSeed, id: number): Task => ({
   id: `task-${id}`,
+  ...INITIATIVE_DEFAULTS,
+  stage1: "order",
+  impact1Type: "relative_percent",
+  impact1Value: 0,
+  impact2Value: 0,
   ...task,
 });
 

@@ -306,6 +306,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE roadmap_state;
 
 Или в Supabase Dashboard: Database → Publications → `supabase_realtime` → включить `roadmap_state`.
 
+**Идеи (вкладка pre-backlog)** при настроенном Supabase уходят в облако **автоматически** (с небольшой задержкой после правок). **Основной roadmap** в общей базе по-прежнему обновляется только кнопкой «Сохранить общий roadmap». Без Supabase всё по-прежнему сохраняется в **localStorage** в браузере.
+
 ### Ограничения текущей версии
 
 - месячная база сейчас делится равномерно на 12 месяцев
@@ -620,6 +622,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE roadmap_state;
 ```
 
 Or in Supabase Dashboard: Database → Publications → `supabase_realtime` → enable `roadmap_state`.
+
+**Ideas (pre-backlog tab)** sync to the cloud **automatically** when Supabase is configured (short debounce after edits). The **main roadmap** in the shared row is still updated only via **Save shared roadmap**. Without Supabase, everything continues to persist in the browser **localStorage**.
 
 ### Current limitations
 

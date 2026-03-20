@@ -9,6 +9,20 @@ export type AdjustableStage =
 export type ImpactType = "relative_percent" | "absolute_pp" | "absolute_value";
 export type Priority = "p1" | "p2" | "p3";
 
+/** Жизненный цикл инициативы: pre-backlog → roadmap. */
+export type InitiativeStatus = "draft" | "hypothesis" | "planned" | "in_progress" | "released";
+
+export type InitiativeConfidence = "low" | "medium" | "high";
+
+export type InitiativeEffort = "s" | "m" | "l";
+
+/** Продуктовая категория влияния (UX); расчёт идёт через stage + impact type. */
+export type InitiativeImpactCategory =
+  | "conversion"
+  | "aov_upt"
+  | "retention"
+  | "net_cr_cancellations";
+
 export type BaselineInput = {
   sessions: number;
   catalogCr: number;
@@ -51,6 +65,16 @@ export type Task = {
   project: string;
   taskName: string;
   priority: Priority;
+  /** Статус в pipeline: Draft/Hypothesis = pre-backlog; Planned+ = roadmap. */
+  initiativeStatus: InitiativeStatus;
+  /** Что это и зачем */
+  description: string;
+  /** Какую проблему решает */
+  problemStatement: string;
+  /** Категория влияния (для приоритизации и отчётов). */
+  impactCategory: InitiativeImpactCategory;
+  confidence: InitiativeConfidence;
+  effort: InitiativeEffort;
   stage1?: AdjustableStage;
   impact1Type?: ImpactType;
   impact1Value: number;
@@ -158,9 +182,17 @@ export type TaskPMData = {
 
 export type SharedRoadmapPayload = {
   baseline: BaselineInput;
+  /** Roadmap / план (отдельно от pre-backlog идей). */
   tasks: Task[];
+  /** Идеи и гипотезы до переноса в roadmap. */
+  ideas: Task[];
   trafficChangePercent: number;
   locale: Locale;
   pmData: Record<string, TaskPMData>;
+  /**
+   * Служебное поле для Supabase realtime: при `ideas` колонка обновляется автосохранением идей,
+   * не нужно трогать локальный roadmap. Полное сохранение кнопкой — `full`.
+   */
+  _writeMode?: "ideas" | "full";
 };
 

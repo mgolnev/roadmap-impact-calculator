@@ -1,10 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { formatCurrency, formatNumber } from "@/lib/format";
-import { getImpactTypeLabels, getMonthLabel, getPriorityLabels, getStageLabels, getText } from "@/lib/i18n";
-import { AdjustableStage, ImpactType, Locale, Priority, Task, TaskValueMetrics } from "@/lib/types";
+import {
+  getImpactTypeLabels,
+  getMonthLabel,
+  getPriorityLabels,
+  getStageLabels,
+  getText,
+  INITIATIVE_STATUS_LABELS,
+} from "@/lib/i18n";
+import {
+  ALL_INITIATIVE_STATUSES,
+  isPreBacklogStatus,
+  isRoadmapStatus,
+  normalizeInitiativeStatus,
+} from "@/lib/initiative";
+import { AdjustableStage, ImpactType, InitiativeStatus, Locale, Priority, Task, TaskValueMetrics } from "@/lib/types";
 import { normalizeImpactType, normalizePriority, normalizeStage } from "@/store/calculator-store";
 
 type TasksTableProps = {
@@ -96,14 +109,17 @@ const parseEditableNumber = (value: string) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-function EditableImpactInput({
+export function EditableImpactInput({
   type,
   value,
   onCommit,
+  /** Если true — обновляем родителя при каждом вводе (для live-превью эффекта). По умолчанию только по blur. */
+  liveCommit = false,
 }: {
   type: Task["impact1Type"] | Task["impact2Type"];
   value: number;
   onCommit: (value: number) => void;
+  liveCommit?: boolean;
 }) {
   const [draft, setDraft] = useState(() => formatEditableNumber(formatImpactInputValue(type, value)));
   const [isFocused, setIsFocused] = useState(false);
@@ -121,6 +137,17 @@ function EditableImpactInput({
     setDraft(formatEditableNumber(formatImpactInputValue(type, nextValue)));
   };
 
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const next = event.target.value;
+    setDraft(next);
+    if (liveCommit) {
+      const parsed = parseEditableNumber(next);
+      if (parsed !== null) {
+        onCommit(parseImpactInputValue(type, parsed));
+      }
+    }
+  };
+
   return (
     <input
       className="cell-input small-input"
@@ -135,7 +162,7 @@ function EditableImpactInput({
         setIsFocused(false);
         commitValue();
       }}
-      onChange={(event) => setDraft(event.target.value)}
+      onChange={handleChange}
       onKeyDown={(event) => {
         if (event.key === "Enter") {
           event.currentTarget.blur();
@@ -145,7 +172,7 @@ function EditableImpactInput({
   );
 }
 
-function ImpactEditor({
+export function ImpactEditor({
   locale,
   task,
   index,
@@ -263,6 +290,7 @@ export function TasksTable({
 
   const hasActiveFilters = !!(searchValue.trim() || projectFilter || stageFilter || monthFilter);
   const [toastVisible, setToastVisible] = useState(false);
+  const [movedToIdeasToast, setMovedToIdeasToast] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
@@ -289,6 +317,12 @@ export function TasksTable({
     return () => clearTimeout(t);
   }, [hasActiveFilters, filteredTasks.length, tasks.length]);
 
+  useEffect(() => {
+    if (!movedToIdeasToast) return;
+    const t = setTimeout(() => setMovedToIdeasToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [movedToIdeasToast]);
+
   return (
     <section className="section-card">
       <div className="section-header">
@@ -297,7 +331,7 @@ export function TasksTable({
         </div>
       </div>
 
-      <div className="tasks-filters">
+      <div className="tasks-filters tasks-filters--panel">
         <div className="filters-row filters-row-primary">
           <input
             className={`cell-input ${searchValue.trim() ? "filter-active" : ""}`}
@@ -501,6 +535,7 @@ export function TasksTable({
               <th>{text.valuePerMonth}</th>
               <th>{text.comment}</th>
               <th>{text.priority}</th>
+              <th>{text.initiativeStatus}</th>
               <th>{text.actions}</th>
             </tr>
           </thead>
@@ -606,6 +641,31 @@ export function TasksTable({
                     </select>
                   </td>
                   <td>
+                    <select
+                      className="cell-input"
+                      title={text.roadmapStatusHint}
+                      value={task.initiativeStatus}
+                      onChange={(event) => {
+                        const next = normalizeInitiativeStatus(event.target.value);
+                        if (next) {
+                          const wasRoadmap = isRoadmapStatus(task.initiativeStatus);
+                          const toIdeas = isPreBacklogStatus(next);
+                          onUpdate(task.id, "initiativeStatus", next);
+                          if (wasRoadmap && toIdeas) {
+                            const label = task.taskName.trim() || text.toastTaskUntitled;
+                            setMovedToIdeasToast(text.toastTaskMovedToIdeas.replace("{name}", label));
+                          }
+                        }
+                      }}
+                    >
+                      {ALL_INITIATIVE_STATUSES.map((st: InitiativeStatus) => (
+                        <option key={st} value={st}>
+                          {INITIATIVE_STATUS_LABELS[locale][st]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
                     <div className="actions">
                       <button className="ghost-button" type="button" onClick={() => onDuplicate(task.id)}>
                         {text.duplicate}
@@ -628,7 +688,7 @@ export function TasksTable({
               <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.standaloneBase ?? 0), 0))}</td>
               <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.incrementalCurrent ?? 0), 0))}</td>
               <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.valuePerMonth ?? 0), 0))}</td>
-              <td colSpan={2}>{formatNumber(activeTasksCount)} {text.activeTasks}</td>
+              <td colSpan={3}>{formatNumber(activeTasksCount)} {text.activeTasks}</td>
             </tr>
           </tfoot>
         </table>
@@ -639,8 +699,13 @@ export function TasksTable({
       ) : null}
 
       {toastVisible ? (
-        <div className="toast" role="status">
+        <div className={`toast${movedToIdeasToast ? " toast--stacked" : ""}`} role="status">
           {text.tasksFilteredToast}
+        </div>
+      ) : null}
+      {movedToIdeasToast ? (
+        <div className="toast" role="status">
+          {movedToIdeasToast}
         </div>
       ) : null}
     </section>

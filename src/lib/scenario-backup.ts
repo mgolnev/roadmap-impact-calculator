@@ -1,7 +1,13 @@
 import * as XLSX from "xlsx";
 
+import { isPreBacklogStatus, withInitiativeDefaults } from "@/lib/initiative";
 import { getText } from "@/lib/i18n";
-import { buildTaskImportWorkbook, parseTaskImportWorkbook } from "@/lib/task-template";
+import {
+  buildTaskImportWorkbook,
+  parseTaskImportWorkbook,
+  TASK_TEMPLATE_COLUMN_WIDTHS,
+  tasksToTemplateExportRows,
+} from "@/lib/task-template";
 import { BaselineInput, Locale, Task } from "@/lib/types";
 
 const SCENARIO_SHEET_NAME: Record<Locale, string> = {
@@ -12,6 +18,11 @@ const SCENARIO_SHEET_NAME: Record<Locale, string> = {
 const BASELINE_SHEET_NAME: Record<Locale, string> = {
   ru: "База сценария",
   en: "Scenario baseline",
+};
+
+const IDEAS_SHEET_NAME: Record<Locale, string> = {
+  ru: "Идеи",
+  en: "Ideas",
 };
 
 const parseNumber = (value: unknown) => {
@@ -56,11 +67,13 @@ export const buildScenarioBackupWorkbook = ({
   locale,
   baseline,
   tasks,
+  ideas = [],
   trafficChangePercent,
 }: {
   locale: Locale;
   baseline: BaselineInput;
   tasks: Task[];
+  ideas?: Task[];
   trafficChangePercent: number;
 }) => {
   const workbook = XLSX.utils.book_new();
@@ -68,10 +81,11 @@ export const buildScenarioBackupWorkbook = ({
 
   const scenarioSheet = XLSX.utils.json_to_sheet([
     {
-      version: 1,
+      version: 2,
       locale,
       trafficChangePercent,
       tasksCount: tasks.length,
+      ideasCount: ideas.length,
     },
   ]);
 
@@ -99,6 +113,12 @@ export const buildScenarioBackupWorkbook = ({
     XLSX.utils.book_append_sheet(workbook, taskWorkbook.Sheets[sheetName], sheetName);
   });
 
+  if (ideas.length > 0) {
+    const ideasSheet = XLSX.utils.json_to_sheet(tasksToTemplateExportRows(ideas));
+    ideasSheet["!cols"] = TASK_TEMPLATE_COLUMN_WIDTHS.map((width) => ({ wch: width }));
+    XLSX.utils.book_append_sheet(workbook, ideasSheet, IDEAS_SHEET_NAME[locale]);
+  }
+
   workbook.Props = {
     Title: locale === "ru" ? "Бэкап сценария roadmap" : "Roadmap scenario backup",
     Subject: getText(locale).saveScenario,
@@ -114,6 +134,7 @@ export const parseScenarioBackupWorkbook = (
   locale: Locale;
   baseline: BaselineInput;
   tasks: Task[];
+  ideas: Task[];
   trafficChangePercent: number;
 } => {
   const workbook = XLSX.read(file, { type: "array" });
@@ -198,10 +219,27 @@ export const parseScenarioBackupWorkbook = (
 
   const { tasks } = parseTaskImportWorkbook(file, locale);
 
+  const ideasPreferred = [IDEAS_SHEET_NAME.ru, IDEAS_SHEET_NAME.en];
+  const ideasSheetName = ideasPreferred.find((name) => workbook.SheetNames.includes(name));
+  let ideas: Task[] = [];
+  if (ideasSheetName) {
+    const parsedIdeas = parseTaskImportWorkbook(file, locale, { sheetName: ideasSheetName });
+    ideas = parsedIdeas.tasks.map((t) => {
+      const normalized = withInitiativeDefaults(t);
+      return {
+        ...normalized,
+        initiativeStatus: isPreBacklogStatus(normalized.initiativeStatus)
+          ? normalized.initiativeStatus
+          : "hypothesis",
+      };
+    });
+  }
+
   return {
     locale,
     baseline,
     tasks,
+    ideas,
     trafficChangePercent,
   };
 };

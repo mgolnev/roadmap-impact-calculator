@@ -11,7 +11,6 @@ type BaselineTableProps = {
   baseline: BaselineInput;
   locale: Locale;
   onChange: <K extends keyof BaselineInput>(key: K, value: number) => void;
-  onReset: () => void;
 };
 
 const CR_FIELDS: Array<{ key: keyof BaselineInput; stage: "catalog" | "pdp" | "atc" | "checkout" | "order" }> = [
@@ -98,7 +97,7 @@ function EditableNumberInput({
   );
 }
 
-export function BaselineTable({ baseline, locale, onChange, onReset }: BaselineTableProps) {
+export function BaselineTable({ baseline, locale, onChange }: BaselineTableProps) {
   const derived = deriveBaseline(baseline);
   const rates = getBaseRates(baseline);
   const text = getText(locale);
@@ -120,13 +119,8 @@ export function BaselineTable({ baseline, locale, onChange, onReset }: BaselineT
       <div className="section-header">
         <div>
           <h2>{text.baselineTitle}</h2>
-          <p>
-            {text.baselineDescription}
-          </p>
+          <p>{text.baselineDescription}</p>
         </div>
-        <button className="ghost-button" onClick={onReset} type="button">
-          {text.resetDefaults}
-        </button>
       </div>
 
       <div className="table-wrap">

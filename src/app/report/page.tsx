@@ -9,6 +9,7 @@ import { buildAnnualFunnelComparisonRows, type FunnelComparisonRow } from "@/lib
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
 import { getText, getStageLabels } from "@/lib/i18n";
 import { getTaskValueMetrics, getTrafficMultiplier, simulateScenario } from "@/lib/calculations";
+import { taskCountsTowardPlan } from "@/lib/initiative";
 import { useCalculatorStore } from "@/store/calculator-store";
 
 const formatCell = (row: FunnelComparisonRow, value: number) => {
@@ -27,9 +28,11 @@ const formatDeltaCell = (row: FunnelComparisonRow, delta: number) => {
 };
 
 export default function CeoReportPage() {
-  const { baseline, tasks, trafficChangePercent, locale } = useCalculatorStore();
+  const { baseline, tasks, ideas, trafficChangePercent, locale } = useCalculatorStore();
   const text = getText(locale);
   const stageLabels = getStageLabels(locale);
+
+  const allForMetrics = useMemo(() => [...ideas, ...tasks], [ideas, tasks]);
 
   const baselineSimulation = useMemo(
     () => simulateScenario(baseline, [], getTrafficMultiplier(trafficChangePercent)),
@@ -40,8 +43,8 @@ export default function CeoReportPage() {
     [baseline, trafficChangePercent, tasks],
   );
   const taskMetrics = useMemo(
-    () => getTaskValueMetrics(baseline, tasks, trafficChangePercent),
-    [baseline, trafficChangePercent, tasks],
+    () => getTaskValueMetrics(baseline, allForMetrics, trafficChangePercent),
+    [allForMetrics, baseline, trafficChangePercent],
   );
 
   const funnelRows = useMemo(
@@ -60,7 +63,7 @@ export default function CeoReportPage() {
     const noProject = locale === "ru" ? "Без проекта" : "No project";
     return Array.from(
       tasks
-        .filter((t) => t.active)
+        .filter((t) => taskCountsTowardPlan(t))
         .reduce((acc, task) => {
           const key = task.project.trim() || noProject;
           const cur = acc.get(key) ?? { project: key, value: 0, taskCount: 0 };
@@ -83,7 +86,7 @@ export default function CeoReportPage() {
   const projOrders = projectedSimulation.annual.orders;
   const deltaOrders = projOrders - baseOrders;
 
-  const activeCount = tasks.filter((t) => t.active).length;
+  const activeCount = tasks.filter((t) => taskCountsTowardPlan(t)).length;
   const generated = new Date().toLocaleString(locale === "ru" ? "ru-RU" : "en-GB", {
     dateStyle: "long",
     timeStyle: "short",

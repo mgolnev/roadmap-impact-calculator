@@ -8,7 +8,16 @@ import {
   simulateScenario,
 } from "@/lib/calculations";
 import { buildAnnualFunnelComparisonRows } from "@/lib/funnel-comparison";
-import { getMonthLabel, getPriorityLabels, getStageLabels, getText } from "@/lib/i18n";
+import {
+  getMonthLabel,
+  getPriorityLabels,
+  getStageLabels,
+  getText,
+  IMPACT_CATEGORY_LABELS,
+  INITIATIVE_CONFIDENCE_LABELS,
+  INITIATIVE_EFFORT_LABELS,
+  INITIATIVE_STATUS_LABELS,
+} from "@/lib/i18n";
 import { BaselineInput, ImpactType, Locale, Task, TaskValueMetrics } from "@/lib/types";
 
 const shortImpactTypeLabel = (locale: Locale, type: ImpactType | undefined): string => {
@@ -24,6 +33,8 @@ type ExportWorkbookParams = {
   locale: Locale;
   baseline: BaselineInput;
   tasks: Task[];
+  /** Pre-backlog (отдельный лист в XLSX). */
+  ideas?: Task[];
   trafficChangePercent: number;
   taskMetrics: Record<string, TaskValueMetrics>;
 };
@@ -111,6 +122,7 @@ export const buildRoadmapImpactWorkbook = ({
   locale,
   baseline,
   tasks,
+  ideas = [],
   trafficChangePercent,
   taskMetrics,
 }: ExportWorkbookParams) => {
@@ -275,6 +287,12 @@ export const buildRoadmapImpactWorkbook = ({
       ? {
           project: "Проект",
           taskName: "Задача",
+          initiativeStatus: "Статус",
+          description: "Описание",
+          problemStatement: "Проблема",
+          impactCategory: "Тип влияния",
+          confidence: "Уверенность",
+          effort: "Effort",
           priority: "Приоритет",
           stage1: "Этап 1",
           impact1Type: "Тип 1",
@@ -291,6 +309,12 @@ export const buildRoadmapImpactWorkbook = ({
       : {
           project: "Project",
           taskName: "Task",
+          initiativeStatus: "Status",
+          description: "Description",
+          problemStatement: "Problem statement",
+          impactCategory: "Impact category",
+          confidence: "Confidence",
+          effort: "Effort",
           priority: "Priority",
           stage1: "Stage 1",
           impact1Type: "Type 1",
@@ -305,30 +329,41 @@ export const buildRoadmapImpactWorkbook = ({
           comment: "Comment",
         };
 
-  const tasksSheet = XLSX.utils.json_to_sheet(
-    tasks.map((task) => ({
-      [taskCol.project]: task.project,
-      [taskCol.taskName]: task.taskName,
-      [taskCol.priority]: priorityLabels[task.priority],
-      [taskCol.stage1]: task.stage1 ? stageLabels[task.stage1] : "",
-      [taskCol.impact1Type]: shortImpactTypeLabel(locale, task.impact1Type),
-      [taskCol.impact1Value]: task.impact1Value,
-      [taskCol.stage2]: task.stage2 ? stageLabels[task.stage2] : "",
-      [taskCol.impact2Type]: shortImpactTypeLabel(locale, task.impact2Type),
-      [taskCol.impact2Value]: task.impact2Value,
-      [taskCol.releaseMonth]: getMonthLabel(locale, task.releaseMonth),
-      [taskCol.monthsActive]: taskMetrics[task.id]?.monthsActive ?? 0,
-      [taskCol.standaloneBase]: taskMetrics[task.id]?.standaloneBase ?? 0,
-      [taskCol.valuePerMonth]: taskMetrics[task.id]?.valuePerMonth ?? 0,
-      [taskCol.comment]: task.comment,
-    })),
-  );
+  const rowFromTask = (task: Task) => ({
+    [taskCol.project]: task.project,
+    [taskCol.taskName]: task.taskName,
+    [taskCol.initiativeStatus]: INITIATIVE_STATUS_LABELS[locale][task.initiativeStatus],
+    [taskCol.description]: task.description,
+    [taskCol.problemStatement]: task.problemStatement,
+    [taskCol.impactCategory]: IMPACT_CATEGORY_LABELS[locale][task.impactCategory],
+    [taskCol.confidence]: INITIATIVE_CONFIDENCE_LABELS[locale][task.confidence],
+    [taskCol.effort]: INITIATIVE_EFFORT_LABELS[locale][task.effort],
+    [taskCol.priority]: priorityLabels[task.priority],
+    [taskCol.stage1]: task.stage1 ? stageLabels[task.stage1] : "",
+    [taskCol.impact1Type]: shortImpactTypeLabel(locale, task.impact1Type),
+    [taskCol.impact1Value]: task.impact1Value,
+    [taskCol.stage2]: task.stage2 ? stageLabels[task.stage2] : "",
+    [taskCol.impact2Type]: shortImpactTypeLabel(locale, task.impact2Type),
+    [taskCol.impact2Value]: task.impact2Value,
+    [taskCol.releaseMonth]: getMonthLabel(locale, task.releaseMonth),
+    [taskCol.monthsActive]: taskMetrics[task.id]?.monthsActive ?? 0,
+    [taskCol.standaloneBase]: taskMetrics[task.id]?.standaloneBase ?? 0,
+    [taskCol.valuePerMonth]: taskMetrics[task.id]?.valuePerMonth ?? 0,
+    [taskCol.comment]: task.comment,
+  });
+
+  const tasksSheet = XLSX.utils.json_to_sheet(tasks.map(rowFromTask));
 
   XLSX.utils.book_append_sheet(workbook, summarySheet, locale === "ru" ? "Сводка" : "Summary");
   XLSX.utils.book_append_sheet(workbook, baselineSheet, locale === "ru" ? "База" : "Baseline");
   XLSX.utils.book_append_sheet(workbook, impactSheet, locale === "ru" ? "Воронка эффекта" : "Impact funnel");
   XLSX.utils.book_append_sheet(workbook, topProjectsSheet, locale === "ru" ? "Топ проектов" : "Top projects");
   XLSX.utils.book_append_sheet(workbook, tasksSheet, locale === "ru" ? "Задачи" : "Tasks");
+
+  if (ideas.length > 0) {
+    const ideasSheet = XLSX.utils.json_to_sheet(ideas.map(rowFromTask));
+    XLSX.utils.book_append_sheet(workbook, ideasSheet, locale === "ru" ? "Идеи (pre-backlog)" : "Ideas (pre-backlog)");
+  }
 
   return workbook;
 };

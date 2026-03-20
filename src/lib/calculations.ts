@@ -1,3 +1,4 @@
+import { taskCountsTowardPlan } from "@/lib/initiative";
 import {
   AdjustableStage,
   AnnualFunnel,
@@ -6,6 +7,7 @@ import {
   BaselineInput,
   FunnelRates,
   ImpactType,
+  InitiativeStatus,
   MonthlyRow,
   SimulationResult,
   Task,
@@ -122,7 +124,7 @@ const getToSessionRates = (annual: Omit<AnnualFunnel, "rates" | "toSessionsRates
 });
 
 export const getFullyImplementedRates = (baseline: BaselineInput, tasks: Task[]) => {
-  const activeTasks = tasks.filter((task) => task.active);
+  const activeTasks = tasks.filter((task) => taskCountsTowardPlan(task));
   const baseRates = getBaseRates(baseline);
 
   const catalogCr = applyImpacts(
@@ -218,7 +220,9 @@ export const simulateScenario = (
 
   const months: MonthlyRow[] = Array.from({ length: 12 }, (_, index) => {
     const month = index + 1;
-    const activeTasks = tasks.filter((task) => task.active && task.releaseMonth <= month);
+    const activeTasks = tasks.filter(
+      (task) => taskCountsTowardPlan(task) && task.releaseMonth <= month,
+    );
 
     const trafficImpacts = activeTasks.flatMap((task) => getTaskImpact(task, "traffic"));
     const catalogImpacts = activeTasks.flatMap((task) => getTaskImpact(task, "catalog"));
@@ -291,10 +295,16 @@ const simulateWithSingleTask = (
 ) =>
   simulateScenario(
     baseline,
-    tasks.map((task) => ({
-      ...task,
-      active: task.id === taskId,
-    })),
+    tasks.map((task) =>
+      task.id === taskId
+        ? {
+            ...task,
+            active: true,
+            /* Оценка «как в roadmap», даже для pre-backlog */
+            initiativeStatus: "planned" as InitiativeStatus,
+          }
+        : { ...task, active: false },
+    ),
     trafficMultiplier,
   );
 
@@ -305,7 +315,7 @@ const getPlanContributionByTaskId = (
 ) => {
   const activeTasksInPlanOrder = tasks
     .map((task, index) => ({ task, index }))
-    .filter(({ task }) => task.active)
+    .filter(({ task }) => taskCountsTowardPlan(task))
     .sort((left, right) => {
       if (left.task.releaseMonth !== right.task.releaseMonth) {
         return left.task.releaseMonth - right.task.releaseMonth;
@@ -366,7 +376,7 @@ export const getTaskValueMetrics = (
         simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(30)).annual.netRevenue -
         plus30BaseNet;
       const monthsActive = Math.max(0, 13 - task.releaseMonth);
-      const incrementalCurrent = task.active
+      const incrementalCurrent = taskCountsTowardPlan(task)
         ? currentPlanContributions.get(task.id) ?? 0
         : 0;
 

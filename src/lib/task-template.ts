@@ -1,6 +1,13 @@
 import * as XLSX from "xlsx";
 
 import { getImpactTypeLabels, getMonthLabel, getPriorityLabels, getStageLabels, getText, IMPACT_TYPE_LABELS, MONTH_LABELS, PRIORITY_LABELS, STAGE_LABELS } from "@/lib/i18n";
+import {
+  normalizeConfidence,
+  normalizeEffort,
+  normalizeImpactCategory,
+  normalizeInitiativeStatus,
+  withInitiativeDefaults,
+} from "@/lib/initiative";
 import { AdjustableStage, ImpactType, Locale, Priority, Task } from "@/lib/types";
 
 const TEMPLATE_SHEET_NAME: Record<Locale, string> = {
@@ -22,6 +29,12 @@ const HEADER_KEYS = [
   "active",
   "project",
   "taskName",
+  "initiativeStatus",
+  "description",
+  "problemStatement",
+  "impactCategory",
+  "confidence",
+  "effort",
   "priority",
   "stage1",
   "impact1Type",
@@ -40,6 +53,12 @@ const HEADER_LABELS: Record<Locale, Record<TemplateHeaderKey, string>> = {
     active: "active",
     project: "project",
     taskName: "task_name",
+    initiativeStatus: "initiative_status",
+    description: "description",
+    problemStatement: "problem_statement",
+    impactCategory: "impact_category",
+    confidence: "confidence",
+    effort: "effort",
     priority: "priority",
     stage1: "stage_1",
     impact1Type: "impact_1_type",
@@ -54,6 +73,12 @@ const HEADER_LABELS: Record<Locale, Record<TemplateHeaderKey, string>> = {
     active: "active",
     project: "project",
     taskName: "task_name",
+    initiativeStatus: "initiative_status",
+    description: "description",
+    problemStatement: "problem_statement",
+    impactCategory: "impact_category",
+    confidence: "confidence",
+    effort: "effort",
     priority: "priority",
     stage1: "stage_1",
     impact1Type: "impact_1_type",
@@ -70,6 +95,12 @@ const HEADER_ALIASES: Record<TemplateHeaderKey, string[]> = {
   active: ["active", "enabled", "on", "вкл", "включена"],
   project: ["project", "проект"],
   taskName: ["taskname", "task_name", "task", "задача", "task name"],
+  initiativeStatus: ["initiativestatus", "initiative_status", "статусинициативы", "status"],
+  description: ["description", "описание"],
+  problemStatement: ["problemstatement", "problem_statement", "проблема", "problem"],
+  impactCategory: ["impactcategory", "impact_category", "типвлияния", "productimpact"],
+  confidence: ["confidence", "уверенность"],
+  effort: ["effort", "efforts", "размер"],
   priority: ["priority", "prioritet", "приоритет"],
   stage1: ["stage1", "stage_1", "primaryimpactstage", "основнойэтап", "основное влияние"],
   impact1Type: ["impact1type", "impact_1_type", "primaryimpacttype", "основнойтип", "тип1"],
@@ -265,6 +296,12 @@ const buildImportRow = (task: Task) => ({
   active: task.active,
   project: task.project,
   task_name: task.taskName,
+  initiative_status: task.initiativeStatus,
+  description: task.description,
+  problem_statement: task.problemStatement,
+  impact_category: task.impactCategory,
+  confidence: task.confidence,
+  effort: task.effort,
   priority: task.priority,
   stage_1: task.stage1 ?? "",
   impact_1_type: task.impact1Type ?? "",
@@ -275,6 +312,8 @@ const buildImportRow = (task: Task) => ({
   release_month: task.releaseMonth,
   comment: task.comment,
 });
+
+export const tasksToTemplateExportRows = (tasks: Task[]) => tasks.map(buildImportRow);
 
 const buildGuideRows = (locale: Locale) => {
   if (locale === "ru") {
@@ -488,6 +527,11 @@ const applyColumnWidths = (sheet: XLSX.WorkSheet, widths: number[]) => {
   sheet["!cols"] = widths.map((width) => ({ wch: width }));
 };
 
+/** Ширины колонок листа шаблона задач (roadmap / идеи). */
+export const TASK_TEMPLATE_COLUMN_WIDTHS = [
+  10, 20, 28, 24, 28, 28, 18, 12, 8, 14, 16, 20, 16, 16, 20, 16, 14, 40,
+];
+
 export const buildTaskImportWorkbook = ({
   locale,
   tasks,
@@ -498,28 +542,28 @@ export const buildTaskImportWorkbook = ({
   const workbook = XLSX.utils.book_new();
   const text = getText(locale);
   const templateRows = (tasks.length > 0 ? tasks : [
-    {
+    withInitiativeDefaults({
       id: "template",
       active: true,
       project: locale === "ru" ? "Новый проект" : "New project",
       taskName: locale === "ru" ? "Новая задача" : "New task",
-      priority: "p2" as const,
-      stage1: "order" as const,
-      impact1Type: "relative_percent" as const,
+      priority: "p2",
+      stage1: "order",
+      impact1Type: "relative_percent",
       impact1Value: 0.1,
       stage2: undefined,
       impact2Type: undefined,
       impact2Value: 0,
       releaseMonth: 4,
       comment: locale === "ru" ? "Пример строки" : "Example row",
-    },
+    } as Task),
   ]).map(buildImportRow);
 
   const templateSheet = XLSX.utils.json_to_sheet(templateRows);
   const guideSheet = XLSX.utils.json_to_sheet(buildGuideRows(locale));
   const referenceSheet = XLSX.utils.json_to_sheet(buildReferenceRows(locale));
 
-  applyColumnWidths(templateSheet, [10, 20, 36, 14, 16, 20, 16, 16, 20, 16, 14, 40]);
+  applyColumnWidths(templateSheet, TASK_TEMPLATE_COLUMN_WIDTHS);
   applyColumnWidths(guideSheet, [28, 12, 70, 60, 28]);
   applyColumnWidths(referenceSheet, [16, 22, 28, 28]);
 
@@ -538,6 +582,7 @@ export const buildTaskImportWorkbook = ({
 export const parseTaskImportWorkbook = (
   file: ArrayBuffer,
   locale: Locale,
+  options?: { sheetName?: string },
 ): { tasks: Task[]; warnings: string[] } => {
   const workbook = XLSX.read(file, { type: "array" });
   const preferredNames = [
@@ -545,7 +590,10 @@ export const parseTaskImportWorkbook = (
     TEMPLATE_SHEET_NAME.en,
     locale === "ru" ? "Задачи" : "Tasks",
   ];
-  const sheetName = preferredNames.find((name) => workbook.SheetNames.includes(name)) ?? workbook.SheetNames[0];
+  const sheetName =
+    options?.sheetName ??
+    preferredNames.find((name) => workbook.SheetNames.includes(name)) ??
+    workbook.SheetNames[0];
 
   if (!sheetName) {
     throw new Error(locale === "ru" ? "В файле не найден ни один лист." : "No sheets found in the file.");
@@ -682,21 +730,31 @@ export const parseTaskImportWorkbook = (
       return;
     }
 
-    tasks.push({
-      id: `task-import-${Date.now()}-${rowIndex}`,
-      active,
-      project: project || (locale === "ru" ? "Без проекта" : "No project"),
-      taskName,
-      priority,
-      stage1,
-      impact1Type,
-      impact1Value,
-      stage2: stage2 ?? undefined,
-      impact2Type: impact2Type ?? undefined,
-      impact2Value: impact2Type ? impact2Value ?? 0 : 0,
-      releaseMonth,
-      comment,
-    });
+    tasks.push(
+      withInitiativeDefaults({
+        id: `task-import-${Date.now()}-${rowIndex}`,
+        active,
+        project: project || (locale === "ru" ? "Без проекта" : "No project"),
+        taskName,
+        priority,
+        initiativeStatus:
+          normalizeInitiativeStatus(cellValue(row, columnMap, "initiativeStatus")) ?? "planned",
+        description: cellValue(row, columnMap, "description"),
+        problemStatement: cellValue(row, columnMap, "problemStatement"),
+        impactCategory:
+          normalizeImpactCategory(cellValue(row, columnMap, "impactCategory")) ?? "conversion",
+        confidence: normalizeConfidence(cellValue(row, columnMap, "confidence")) ?? "medium",
+        effort: normalizeEffort(cellValue(row, columnMap, "effort")) ?? "m",
+        stage1,
+        impact1Type,
+        impact1Value,
+        stage2: stage2 ?? undefined,
+        impact2Type: impact2Type ?? undefined,
+        impact2Value: impact2Type ? impact2Value ?? 0 : 0,
+        releaseMonth,
+        comment,
+      } as Task),
+    );
   });
 
   if (errors.length > 0) {

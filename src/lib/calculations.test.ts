@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { getTaskValueMetrics, getTrafficMultiplier, simulateScenario } from "@/lib/calculations";
+import { withInitiativeDefaults } from "@/lib/initiative";
 import { BaselineInput, Task } from "@/lib/types";
 
 const baseline: BaselineInput = {
@@ -15,21 +16,29 @@ const baseline: BaselineInput = {
   upt: 2,
 };
 
-const createTask = (overrides: Partial<Task>): Task => ({
-  id: overrides.id ?? "task",
-  project: overrides.project ?? "Project",
-  taskName: overrides.taskName ?? "Task",
-  priority: overrides.priority ?? "p2",
-  stage1: overrides.stage1,
-  impact1Type: overrides.impact1Type,
-  impact1Value: overrides.impact1Value ?? 0,
-  stage2: overrides.stage2,
-  impact2Type: overrides.impact2Type,
-  impact2Value: overrides.impact2Value ?? 0,
-  releaseMonth: overrides.releaseMonth ?? 1,
-  active: overrides.active ?? true,
-  comment: overrides.comment ?? "",
-});
+const createTask = (overrides: Partial<Task>): Task =>
+  withInitiativeDefaults({
+    id: overrides.id ?? "task",
+    project: overrides.project ?? "Project",
+    taskName: overrides.taskName ?? "Task",
+    priority: overrides.priority ?? "p2",
+    initiativeStatus: overrides.initiativeStatus ?? "planned",
+    description: overrides.description ?? "",
+    problemStatement: overrides.problemStatement ?? "",
+    impactCategory: overrides.impactCategory ?? "conversion",
+    confidence: overrides.confidence ?? "medium",
+    effort: overrides.effort ?? "m",
+    stage1: overrides.stage1,
+    impact1Type: overrides.impact1Type,
+    impact1Value: overrides.impact1Value ?? 0,
+    stage2: overrides.stage2,
+    impact2Type: overrides.impact2Type,
+    impact2Value: overrides.impact2Value ?? 0,
+    releaseMonth: overrides.releaseMonth ?? 1,
+    active: overrides.active ?? true,
+    comment: overrides.comment ?? "",
+    ...overrides,
+  } as Task);
 
 describe("simulateScenario", () => {
   it("multiplies multiple relative uplifts on the same stage", () => {
@@ -173,5 +182,25 @@ describe("simulateScenario", () => {
     expect(
       metrics["jan-task"].incrementalCurrent + metrics["feb-task"].incrementalCurrent,
     ).toBeCloseTo(withAll - base, 6);
+  });
+
+  it("excludes draft pre-backlog initiatives from the annual scenario", () => {
+    const planned = createTask({
+      id: "p1",
+      initiativeStatus: "planned",
+      stage1: "order",
+      impact1Type: "relative_percent",
+      impact1Value: 0.1,
+    });
+    const draft = createTask({
+      id: "d1",
+      initiativeStatus: "draft",
+      stage1: "order",
+      impact1Type: "relative_percent",
+      impact1Value: 0.5,
+    });
+    const onlyPlanned = simulateScenario(baseline, [planned], getTrafficMultiplier(0));
+    const mixed = simulateScenario(baseline, [planned, draft], getTrafficMultiplier(0));
+    expect(mixed.annual.netRevenue).toBeCloseTo(onlyPlanned.annual.netRevenue, 6);
   });
 });

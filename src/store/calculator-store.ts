@@ -2,32 +2,54 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { DEFAULT_BASELINE, DEFAULT_TASKS } from "@/lib/constants";
-import { AdjustableStage, BaselineInput, ImpactType, Locale, Priority, Task } from "@/lib/types";
+import {
+  buildDemotedIdeaTaskFromRoadmapTask,
+  buildPromotedRoadmapTaskFromIdea,
+  isPreBacklogStatus,
+  withInitiativeDefaults,
+} from "@/lib/initiative";
+import { AdjustableStage, BaselineInput, ImpactType, InitiativeStatus, Locale, Priority, Task } from "@/lib/types";
 
 type StoreState = {
   baseline: BaselineInput;
+  /** Только roadmap (planned / in_progress / released). */
   tasks: Task[];
+  /** Pre-backlog: draft / hypothesis — отдельно от roadmap. */
+  ideas: Task[];
   trafficChangePercent: number;
   locale: Locale;
   setBaseline: (baseline: BaselineInput) => void;
   updateBaseline: <K extends keyof BaselineInput>(key: K, value: number) => void;
-  resetBaseline: () => void;
   updateTask: <K extends keyof Task>(id: string, key: K, value: Task[K]) => void;
+  updateIdea: <K extends keyof Task>(id: string, key: K, value: Task[K]) => void;
   setTasks: (tasks: Task[]) => void;
+  setIdeas: (ideas: Task[]) => void;
   setAllTasksActive: (active: boolean) => void;
+  setAllRoadmapTasksActive: (active: boolean) => void;
   addTask: () => void;
+  /** Добавить сохранённую идею в начало списка pre-backlog. */
+  addIdea: (task: Task) => void;
+  promoteIdeaToRoadmap: (id: string) => void;
   removeTask: (id: string) => void;
+  removeIdea: (id: string) => void;
   duplicateTask: (id: string) => void;
+  duplicateIdea: (id: string) => void;
   reorderTasks: (draggedId: string, targetId: string) => void;
   setTrafficChangePercent: (value: number) => void;
   setLocale: (locale: Locale) => void;
 };
 
-const newTaskTemplate = (index: number): Task => ({
+const newRoadmapTaskTemplate = (index: number): Task => ({
   id: `task-new-${Date.now()}-${index}`,
   project: "Custom",
   taskName: `Новая задача ${index}`,
   priority: "p2",
+  initiativeStatus: "planned",
+  description: "",
+  problemStatement: "",
+  impactCategory: "conversion",
+  confidence: "medium",
+  effort: "m",
   stage1: "order",
   impact1Type: "relative_percent",
   impact1Value: 0,
@@ -44,6 +66,7 @@ export const useCalculatorStore = create<StoreState>()(
     (set) => ({
       baseline: DEFAULT_BASELINE,
       tasks: DEFAULT_TASKS,
+      ideas: [],
       trafficChangePercent: 0,
       locale: "ru",
       setBaseline: (baseline) =>
@@ -59,33 +82,84 @@ export const useCalculatorStore = create<StoreState>()(
             [key]: Number.isFinite(value) ? value : 0,
           },
         })),
-      resetBaseline: () => set({ baseline: DEFAULT_BASELINE }),
       updateTask: (id, key, value) =>
+        set((state) => {
+          if (key === "initiativeStatus" && isPreBacklogStatus(value as InitiativeStatus)) {
+            const task = state.tasks.find((t) => t.id === id);
+            if (!task) return state;
+            const demoted = buildDemotedIdeaTaskFromRoadmapTask({
+              ...task,
+              initiativeStatus: value as InitiativeStatus,
+            });
+            return {
+              tasks: state.tasks.filter((t) => t.id !== id),
+              ideas: [demoted, ...state.ideas],
+            };
+          }
+          return {
+            tasks: state.tasks.map((task) =>
+              task.id === id
+                ? {
+                    ...task,
+                    [key]: value,
+                  }
+                : task,
+            ),
+          };
+        }),
+      updateIdea: (id, key, value) =>
         set((state) => ({
-          tasks: state.tasks.map((task) =>
-            task.id === id
+          ideas: state.ideas.map((idea) =>
+            idea.id === id
               ? {
-                  ...task,
+                  ...idea,
                   [key]: value,
                 }
-              : task,
+              : idea,
           ),
         })),
       setTasks: (tasks) => set({ tasks }),
+      setIdeas: (ideas) => set({ ideas }),
       setAllTasksActive: (active) =>
         set((state) => ({
           tasks: state.tasks.map((task) => ({
             ...task,
             active,
           })),
+          ideas: state.ideas.map((idea) => ({
+            ...idea,
+            active,
+          })),
+        })),
+      setAllRoadmapTasksActive: (active) =>
+        set((state) => ({
+          tasks: state.tasks.map((task) => ({ ...task, active })),
         })),
       addTask: () =>
         set((state) => ({
-          tasks: [newTaskTemplate(state.tasks.length + 1), ...state.tasks],
+          tasks: [newRoadmapTaskTemplate(state.tasks.length + 1), ...state.tasks],
         })),
+      addIdea: (task) =>
+        set((state) => ({
+          ideas: [task, ...state.ideas],
+        })),
+      promoteIdeaToRoadmap: (id) =>
+        set((state) => {
+          const idea = state.ideas.find((i) => i.id === id);
+          if (!idea) return state;
+          const promoted = buildPromotedRoadmapTaskFromIdea(idea);
+          return {
+            ideas: state.ideas.filter((i) => i.id !== id),
+            tasks: [promoted, ...state.tasks],
+          };
+        }),
       removeTask: (id) =>
         set((state) => ({
           tasks: state.tasks.filter((task) => task.id !== id),
+        })),
+      removeIdea: (id) =>
+        set((state) => ({
+          ideas: state.ideas.filter((idea) => idea.id !== id),
         })),
       duplicateTask: (id) =>
         set((state) => {
@@ -103,6 +177,21 @@ export const useCalculatorStore = create<StoreState>()(
                 taskName: `${task.taskName} Copy`,
               },
               ...state.tasks,
+            ],
+          };
+        }),
+      duplicateIdea: (id) =>
+        set((state) => {
+          const idea = state.ideas.find((entry) => entry.id === id);
+          if (!idea) return state;
+          return {
+            ideas: [
+              {
+                ...idea,
+                id: `idea-copy-${Date.now()}`,
+                taskName: `${idea.taskName} Copy`,
+              },
+              ...state.ideas,
             ],
           };
         }),
@@ -126,8 +215,9 @@ export const useCalculatorStore = create<StoreState>()(
     }),
     {
       name: "roadmap-impact-calculator-store",
-      version: 2,
-      migrate: (persistedState) => {
+      version: 4,
+      migrate: (persistedState, persistedVersion) => {
+        const version = typeof persistedVersion === "number" ? persistedVersion : 0;
         const state = persistedState as {
           baseline?: Partial<BaselineInput> & {
             catalog?: number;
@@ -137,6 +227,7 @@ export const useCalculatorStore = create<StoreState>()(
             orders?: number;
           };
           tasks?: Array<Task & { stream?: string }>;
+          ideas?: Task[];
           trafficChangePercent?: number;
           locale?: Locale;
         };
@@ -177,16 +268,31 @@ export const useCalculatorStore = create<StoreState>()(
               upt: baselineState?.upt ?? DEFAULT_BASELINE.upt,
             };
 
-        const migratedTasks =
+        let migratedTasks =
           state?.tasks?.map((task) => ({
             ...task,
             project: task.project ?? task.stream ?? "Custom",
             priority: (task.priority as Priority | undefined) ?? "p2",
           })) ?? DEFAULT_TASKS;
 
+        migratedTasks = migratedTasks.map((task) => withInitiativeDefaults(task as Task));
+
+        let ideas: Task[] = [];
+        if (version >= 4) {
+          ideas = (state.ideas ?? []).map((t) => withInitiativeDefaults(t as Task));
+        } else {
+          const normalized = migratedTasks.map((t) => withInitiativeDefaults(t as Task));
+          ideas = normalized.filter((t) => isPreBacklogStatus(t.initiativeStatus));
+          migratedTasks = normalized.filter((t) => !isPreBacklogStatus(t.initiativeStatus));
+          if (migratedTasks.length === 0) {
+            migratedTasks = DEFAULT_TASKS;
+          }
+        }
+
         return {
           baseline: migratedBaseline,
           tasks: migratedTasks,
+          ideas,
           trafficChangePercent: state?.trafficChangePercent ?? 0,
           locale: state?.locale ?? "ru",
         };
