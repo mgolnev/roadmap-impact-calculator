@@ -1,6 +1,6 @@
 "use client";
 
-import { getStageLabels, getText } from "@/lib/i18n";
+import { getMonthLabel, getStageLabels, getText } from "@/lib/i18n";
 import { AdjustableStage, AnnualFunnel, FunnelRates, Task } from "@/lib/types";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
 import { Locale } from "@/lib/types";
@@ -24,7 +24,12 @@ type ImpactHighlightsProps = {
   projectedAnnual: AnnualFunnel;
   fullyImplementedAnnual: AnnualFunnel;
   fullyImplementedRates: FunnelRates;
-  topTasks: Array<{ projectName: string; value: number; taskCount: number }>;
+  topTasks: Array<{
+    projectName: string;
+    value: number;
+    taskCount: number;
+    latestReleaseMonth: number;
+  }>;
 };
 
 const deltaClass = (current: number, base: number) => {
@@ -330,6 +335,9 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
                   >
                     ({task.taskCount} {text.tasksShort})
                   </button>
+                  <span className="top-task-release" title={text.topProjectLatestReleaseTitle}>
+                    {getMonthLabel(props.locale, task.latestReleaseMonth)}
+                  </span>
                 </div>
                 <strong className={task.value >= 0 ? "delta-positive" : "delta-negative"}>{formatCurrency(task.value)}</strong>
               </div>

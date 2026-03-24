@@ -7,7 +7,8 @@ import "./ceo-report.css";
 
 import { buildAnnualFunnelComparisonRows, type FunnelComparisonRow } from "@/lib/funnel-comparison";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
-import { getText, getStageLabels } from "@/lib/i18n";
+import { getMonthLabel, getText, getStageLabels } from "@/lib/i18n";
+import { buildTopProjectRows } from "@/lib/top-projects";
 import { getTaskValueMetrics, getTrafficMultiplier, simulateScenario } from "@/lib/calculations";
 import { taskCountsTowardPlan } from "@/lib/initiative";
 import { useCalculatorStore } from "@/store/calculator-store";
@@ -61,19 +62,7 @@ export default function CeoReportPage() {
 
   const topProjects = useMemo(() => {
     const noProject = locale === "ru" ? "Без проекта" : "No project";
-    return Array.from(
-      tasks
-        .filter((t) => taskCountsTowardPlan(t))
-        .reduce((acc, task) => {
-          const key = task.project.trim() || noProject;
-          const cur = acc.get(key) ?? { project: key, value: 0, taskCount: 0 };
-          cur.value += taskMetrics[task.id]?.incrementalCurrent ?? 0;
-          cur.taskCount += 1;
-          acc.set(key, cur);
-          return acc;
-        }, new Map<string, { project: string; value: number; taskCount: number }>())
-        .values(),
-    ).sort((a, b) => b.value - a.value);
+    return buildTopProjectRows(tasks, taskMetrics, noProject, taskCountsTowardPlan);
   }, [locale, taskMetrics, tasks]);
 
   const baseNet = baselineSimulation.annual.netRevenue;
@@ -193,12 +182,13 @@ export default function CeoReportPage() {
                 <th>{text.ceoReportColProject}</th>
                 <th className="num">{text.ceoReportColContribution}</th>
                 <th className="num">{text.ceoReportColTaskCount}</th>
+                <th className="num">{text.ceoReportColLatestRelease}</th>
               </tr>
             </thead>
             <tbody>
               {topProjects.length === 0 ? (
                 <tr>
-                  <td colSpan={4} style={{ padding: "16px", color: "var(--text-secondary)" }}>
+                  <td colSpan={5} style={{ padding: "16px", color: "var(--text-secondary)" }}>
                     —
                   </td>
                 </tr>
@@ -207,8 +197,9 @@ export default function CeoReportPage() {
                   <tr key={row.project}>
                     <td>{i + 1}</td>
                     <td>{row.project}</td>
-                    <td className="num">{formatCurrency(row.value)}</td>
+                    <td className="num">{formatCurrency(row.netRevenueContribution)}</td>
                     <td className="num">{row.taskCount}</td>
+                    <td className="num">{getMonthLabel(locale, row.latestReleaseMonth)}</td>
                   </tr>
                 ))
               )}

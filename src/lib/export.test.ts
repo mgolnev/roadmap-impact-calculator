@@ -91,6 +91,7 @@ describe("buildRoadmapImpactWorkbook", () => {
     expect(impactFlat).toContain("Gross revenue");
     expect(topProjectsRows[0]["Проект"]).toBe("New Checkout");
     expect(topProjectsRows[0]["Вклад в Net revenue (план)"]).toBe(900);
+    expect(topProjectsRows[0]["Поздний релиз (мес.)"]).toBe("Апр");
     expect(tasksRows[0]["Задача"]).toBe("Checkout Redesign");
     expect(tasksRows[0]["Приоритет"]).toBe("P1 / высокий");
     expect(tasksRows[0]["Тип 1"]).toBe("%");

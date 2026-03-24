@@ -13,6 +13,7 @@ import { ProjectTracker } from "@/components/ProjectTracker";
 import { TasksTable } from "@/components/TasksTable";
 import { getText } from "@/lib/i18n";
 import { buildRoadmapImpactWorkbook } from "@/lib/export";
+import { buildTopProjectRows } from "@/lib/top-projects";
 import { buildScenarioBackupWorkbook, parseScenarioBackupWorkbook } from "@/lib/scenario-backup";
 import { buildTaskImportWorkbook, parseTaskImportWorkbook } from "@/lib/task-template";
 import {
@@ -93,25 +94,15 @@ export default function HomePage() {
       ),
     [baseline, tasks, trafficChangePercent],
   );
-  const topTasks = useMemo(
-    () =>
-      Array.from(
-        tasks
-          .filter((task) => task.active)
-          .reduce((acc, task) => {
-            const key = task.project.trim() || (locale === "ru" ? "Без проекта" : "No project");
-            const current = acc.get(key) ?? { projectName: key, value: 0, taskCount: 0 };
-            current.value += taskMetrics[task.id]?.incrementalCurrent ?? 0;
-            current.taskCount += 1;
-            acc.set(key, current);
-            return acc;
-          }, new Map<string, { projectName: string; value: number; taskCount: number }>())
-          .values(),
-      )
-        .sort((a, b) => b.value - a.value)
-    ,
-    [locale, taskMetrics, tasks],
-  );
+  const topTasks = useMemo(() => {
+    const noProject = locale === "ru" ? "Без проекта" : "No project";
+    return buildTopProjectRows(tasks, taskMetrics, noProject, (t) => t.active).map((r) => ({
+      projectName: r.project,
+      value: r.netRevenueContribution,
+      taskCount: r.taskCount,
+      latestReleaseMonth: r.latestReleaseMonth,
+    }));
+  }, [locale, taskMetrics, tasks]);
 
   useEffect(() => {
     if (selectedProjectFilter || selectedStageFilter) {

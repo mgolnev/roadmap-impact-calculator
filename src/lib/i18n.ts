@@ -141,6 +141,7 @@ export const TEXT = {
     ceoReportColProject: "Проект",
     ceoReportColContribution: "Вклад (Net revenue)",
     ceoReportColTaskCount: "Задач",
+    ceoReportColLatestRelease: "Поздний релиз",
     language: "Язык",
     russian: "Русский",
     english: "Английский",
@@ -183,7 +184,10 @@ export const TEXT = {
     deltaGrossRevenue: "Delta Gross revenue",
     deltaOrders: "Delta заказов",
     topTasksTitle: "Топ проектов по вкладу в текущем плане",
-    topTasksHint: "Справа — вклад проекта в Net revenue по текущему плану.",
+    topTasksHint:
+      "Справа — вклад в Net revenue; месяц — поздний релиз в проекте (к этому месяцу все активные задачи проекта уже стартуют в модели).",
+    topProjectLatestReleaseTitle:
+      "Месяц последнего старта эффекта среди задач проекта: к нему все активные задачи этого проекта уже учтены в плане.",
     noActiveTasks: "Нет активных задач",
     allMetricsImpactTitle: "Показатели после выбранных задач",
     impactFunnelTitle: "Воронка конверсий после выбранных задач",
@@ -357,6 +361,7 @@ export const TEXT = {
     ceoReportColProject: "Project",
     ceoReportColContribution: "Contribution (net revenue)",
     ceoReportColTaskCount: "Tasks",
+    ceoReportColLatestRelease: "Latest go-live",
     language: "Language",
     russian: "Russian",
     english: "English",
@@ -399,7 +404,10 @@ export const TEXT = {
     deltaGrossRevenue: "Delta gross revenue",
     deltaOrders: "Delta orders",
     topTasksTitle: "Top projects by contribution in the current plan",
-    topTasksHint: "On the right is the project's contribution to net revenue in the current plan.",
+    topTasksHint:
+      "On the right: net revenue contribution; month is the latest release in the project (by then all active project tasks are live in the model).",
+    topProjectLatestReleaseTitle:
+      "Latest effect start month among this project's tasks: by then every active task in the project is reflected in the plan.",
     noActiveTasks: "No active tasks",
     allMetricsImpactTitle: "Metrics after selected tasks",
     impactFunnelTitle: "Conversion funnel after selected tasks",

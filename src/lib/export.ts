@@ -18,6 +18,7 @@ import {
   INITIATIVE_EFFORT_LABELS,
   INITIATIVE_STATUS_LABELS,
 } from "@/lib/i18n";
+import { buildTopProjectRows } from "@/lib/top-projects";
 import { BaselineInput, ImpactType, Locale, Task, TaskValueMetrics } from "@/lib/types";
 
 const shortImpactTypeLabel = (locale: Locale, type: ImpactType | undefined): string => {
@@ -95,29 +96,6 @@ const conversionRows = (
   },
 ];
 
-const buildTopProjectsForExport = (
-  locale: Locale,
-  tasks: Task[],
-  taskMetrics: Record<string, TaskValueMetrics>,
-  noProjectLabel: string,
-) => {
-  const rows = Array.from(
-    tasks
-      .filter((task) => task.active)
-      .reduce((acc, task) => {
-        const key = task.project.trim() || noProjectLabel;
-        const current = acc.get(key) ?? { project: key, netRevenueContribution: 0, taskCount: 0 };
-        current.netRevenueContribution += taskMetrics[task.id]?.incrementalCurrent ?? 0;
-        current.taskCount += 1;
-        acc.set(key, current);
-        return acc;
-      }, new Map<string, { project: string; netRevenueContribution: number; taskCount: number }>())
-      .values(),
-  ).sort((a, b) => b.netRevenueContribution - a.netRevenueContribution);
-
-  return rows;
-};
-
 export const buildRoadmapImpactWorkbook = ({
   locale,
   baseline,
@@ -137,7 +115,7 @@ export const buildRoadmapImpactWorkbook = ({
   const derivedBaseline = deriveBaseline(baseline);
   const baseRates = getBaseRates(baseline);
   const noProjectLabel = locale === "ru" ? "Без проекта" : "No project";
-  const topProjects = buildTopProjectsForExport(locale, tasks, taskMetrics, noProjectLabel);
+  const topProjects = buildTopProjectRows(tasks, taskMetrics, noProjectLabel, (t) => t.active);
 
   const summarySheet = XLSX.utils.json_to_sheet([
     {
@@ -270,16 +248,34 @@ export const buildRoadmapImpactWorkbook = ({
 
   const topProjectsHeaders =
     locale === "ru"
-      ? { project: "Проект", netRevenueContribution: "Вклад в Net revenue (план)", taskCount: "Задач в проекте" }
-      : { project: "Project", netRevenueContribution: "Net revenue contribution (plan)", taskCount: "Tasks in project" };
+      ? {
+          project: "Проект",
+          netRevenueContribution: "Вклад в Net revenue (план)",
+          taskCount: "Задач в проекте",
+          latestReleaseMonth: "Поздний релиз (мес.)",
+        }
+      : {
+          project: "Project",
+          netRevenueContribution: "Net revenue contribution (plan)",
+          taskCount: "Tasks in project",
+          latestReleaseMonth: "Latest release (month)",
+        };
   const topProjectsSheet = XLSX.utils.json_to_sheet(
     topProjects.length
       ? topProjects.map((r) => ({
           [topProjectsHeaders.project]: r.project,
           [topProjectsHeaders.netRevenueContribution]: r.netRevenueContribution,
           [topProjectsHeaders.taskCount]: r.taskCount,
+          [topProjectsHeaders.latestReleaseMonth]: getMonthLabel(locale, r.latestReleaseMonth),
         }))
-      : [{ [topProjectsHeaders.project]: locale === "ru" ? "—" : "—", [topProjectsHeaders.netRevenueContribution]: 0, [topProjectsHeaders.taskCount]: 0 }],
+      : [
+          {
+            [topProjectsHeaders.project]: locale === "ru" ? "—" : "—",
+            [topProjectsHeaders.netRevenueContribution]: 0,
+            [topProjectsHeaders.taskCount]: 0,
+            [topProjectsHeaders.latestReleaseMonth]: "—",
+          },
+        ],
   );
 
   const taskCol =

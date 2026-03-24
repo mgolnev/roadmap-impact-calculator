@@ -1739,6 +1739,17 @@ a.primary-button:visited {
   white-space: nowrap;
 }
 
+.top-task-release {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: white;
+  border: 1px solid var(--border-light);
+}
+
 .top-task-rank {
   display: inline-flex;
   align-items: center;
