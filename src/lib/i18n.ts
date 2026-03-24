@@ -142,6 +142,7 @@ export const TEXT = {
     ceoReportColContribution: "Вклад (Net revenue)",
     ceoReportColTaskCount: "Задач",
     ceoReportColLatestRelease: "Поздний релиз",
+    ceoReportTopTasksSection: "Топ задач по вкладу (текущий план)",
     language: "Язык",
     russian: "Русский",
     english: "Английский",
@@ -188,6 +189,21 @@ export const TEXT = {
       "Справа — вклад в Net revenue; месяц — поздний релиз в проекте (к этому месяцу все активные задачи проекта уже стартуют в модели).",
     topProjectLatestReleaseTitle:
       "Месяц последнего старта эффекта среди задач проекта: к нему все активные задачи этого проекта уже учтены в плане.",
+    topTasksRevenueTitle: "Топ задач по вкладу в Net revenue и воронку",
+    topTasksRevenueSubtitle:
+      "Roadmap по инкрементальному вкладу в плане: влияние на метрику (основное и доп. влияние) и месяц старта эффекта.",
+    topTasksRevenueColTask: "Задача",
+    topTasksRevenueColImpact: "Вклад",
+    topTasksRevenueColMetric: "Влияние на показатель",
+    topTasksRevenueColTiming: "Старт",
+    topTasksRevenueFooterTop3: "ТОП‑3 =",
+    topTasksRevenueFooterTop10: "ТОП‑10 =",
+    topTasksRevenueFooterTotal: "Весь план =",
+    topTasksRevenueFooterSep: "|",
+    topTasksRevenueLegend:
+      "Вклад — инкрементальный Net revenue в текущем плане. В колонке метрик указаны этап воронки (или трафик / чек / выкуп / UPT) и тип изменения.",
+    ceoReportOrderCrNote:
+      "Конверсия «заказ / сессии»: {base} → {after} ({deltaRel}% к базе) при всех задачах плана.",
     noActiveTasks: "Нет активных задач",
     allMetricsImpactTitle: "Показатели после выбранных задач",
     impactFunnelTitle: "Воронка конверсий после выбранных задач",
@@ -362,6 +378,7 @@ export const TEXT = {
     ceoReportColContribution: "Contribution (net revenue)",
     ceoReportColTaskCount: "Tasks",
     ceoReportColLatestRelease: "Latest go-live",
+    ceoReportTopTasksSection: "Top tasks by contribution (current plan)",
     language: "Language",
     russian: "Russian",
     english: "English",
@@ -408,6 +425,21 @@ export const TEXT = {
       "On the right: net revenue contribution; month is the latest release in the project (by then all active project tasks are live in the model).",
     topProjectLatestReleaseTitle:
       "Latest effect start month among this project's tasks: by then every active task in the project is reflected in the plan.",
+    topTasksRevenueTitle: "Top tasks by net revenue & funnel impact",
+    topTasksRevenueSubtitle:
+      "Roadmap ranked by incremental plan contribution; metric delta (primary + secondary) and effect start month.",
+    topTasksRevenueColTask: "Task",
+    topTasksRevenueColImpact: "Impact",
+    topTasksRevenueColMetric: "Effect on metrics",
+    topTasksRevenueColTiming: "Timing",
+    topTasksRevenueFooterTop3: "TOP 3 =",
+    topTasksRevenueFooterTop10: "TOP 10 =",
+    topTasksRevenueFooterTotal: "Full plan =",
+    topTasksRevenueFooterSep: "|",
+    topTasksRevenueLegend:
+      "Impact = incremental net revenue in the current plan. The metric column names the funnel step (or traffic / AOV / buyout / UPT) and the type of change.",
+    ceoReportOrderCrNote:
+      "Order / sessions conversion: {base} → {after} ({deltaRel}% vs baseline) with all plan tasks.",
     noActiveTasks: "No active tasks",
     allMetricsImpactTitle: "Metrics after selected tasks",
     impactFunnelTitle: "Conversion funnel after selected tasks",

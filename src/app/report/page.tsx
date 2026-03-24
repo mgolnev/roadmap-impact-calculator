@@ -5,10 +5,12 @@ import { useMemo } from "react";
 
 import "./ceo-report.css";
 
+import { TopTasksByRevenueTable } from "@/components/TopTasksByRevenueTable";
 import { buildAnnualFunnelComparisonRows, type FunnelComparisonRow } from "@/lib/funnel-comparison";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
 import { getMonthLabel, getText, getStageLabels } from "@/lib/i18n";
 import { buildTopProjectRows } from "@/lib/top-projects";
+import { buildTopTasksRevenueBundle } from "@/lib/top-tasks-revenue";
 import { getTaskValueMetrics, getTrafficMultiplier, simulateScenario } from "@/lib/calculations";
 import { taskCountsTowardPlan } from "@/lib/initiative";
 import { useCalculatorStore } from "@/store/calculator-store";
@@ -64,6 +66,27 @@ export default function CeoReportPage() {
     const noProject = locale === "ru" ? "Без проекта" : "No project";
     return buildTopProjectRows(tasks, taskMetrics, noProject, taskCountsTowardPlan);
   }, [locale, taskMetrics, tasks]);
+
+  const topTasksRevenue = useMemo(
+    () => buildTopTasksRevenueBundle(tasks, taskMetrics, locale, taskCountsTowardPlan),
+    [locale, taskMetrics, tasks],
+  );
+
+  const orderCrNote = useMemo(() => {
+    const t = getText(locale);
+    const base = baselineSimulation.annual.toSessionsRates.orderCr;
+    const after = projectedSimulation.annual.toSessionsRates.orderCr;
+    const deltaRel = base > 0 ? Math.round(((after - base) / base) * 100) : 0;
+    const dr = deltaRel >= 0 ? `+${deltaRel}` : String(deltaRel);
+    return t.ceoReportOrderCrNote
+      .replace("{base}", formatPercent(base, 2))
+      .replace("{after}", formatPercent(after, 2))
+      .replace("{deltaRel}", dr);
+  }, [
+    locale,
+    baselineSimulation.annual.toSessionsRates.orderCr,
+    projectedSimulation.annual.toSessionsRates.orderCr,
+  ]);
 
   const baseNet = baselineSimulation.annual.netRevenue;
   const projNet = projectedSimulation.annual.netRevenue;
@@ -170,6 +193,17 @@ export default function CeoReportPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="ceo-report__section ceo-report__section--top-tasks">
+        <h2>{text.ceoReportTopTasksSection}</h2>
+        <TopTasksByRevenueTable
+          locale={locale}
+          data={topTasksRevenue}
+          variant="ceo"
+          omitHeading
+        />
+        <p className="ceo-report__cr-note">{orderCrNote}</p>
       </section>
 
       <section className="ceo-report__section">

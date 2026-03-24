@@ -771,6 +771,11 @@ a.primary-button:visited {
   border-bottom: 2px solid var(--border);
 }
 
+.matrix-table th.num,
+.matrix-table td.num {
+  text-align: right;
+}
+
 /* ---------- Tasks table ---------- */
 
 .tasks-table {
@@ -1773,6 +1778,117 @@ a.primary-button:visited {
 .top-task-leader .top-task-rank {
   background: var(--accent);
   color: white;
+}
+
+/* ---------- Top tasks by revenue (как matrix-table + top-tasks) ---------- */
+
+.top-revenue-table__wrap.table-wrap {
+  margin-top: 12px;
+}
+
+.top-revenue-table__grid {
+  min-width: 640px;
+  font-variant-numeric: tabular-nums;
+}
+
+.top-revenue-table__th-num {
+  width: 40px;
+}
+
+.top-revenue-table__th-timing {
+  white-space: nowrap;
+}
+
+.top-revenue-table tbody tr:nth-child(even) td {
+  background: var(--surface-muted);
+}
+
+.top-revenue-table tbody tr:hover td {
+  background: #f5f7ff;
+}
+
+.top-revenue-table tbody tr:nth-child(even):hover td {
+  background: #f0f3ff;
+}
+
+.top-revenue-table__row--top3 td {
+  background: var(--accent-soft) !important;
+}
+
+.top-revenue-table__td-num {
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+}
+
+.top-revenue-table__td-impact {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.top-revenue-table__td-metric {
+  color: var(--text);
+  font-size: var(--font-sm);
+  line-height: 1.45;
+  max-width: 340px;
+}
+
+.top-revenue-table__metric-line + .top-revenue-table__metric-line {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-light);
+}
+
+.top-revenue-table__td-timing {
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: var(--font-sm);
+}
+
+.top-revenue-table__task-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.top-revenue-table__task-project {
+  font-size: var(--font-sm);
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.top-revenue-table__footer {
+  margin-top: 0;
+  padding: 12px 14px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+
+.top-revenue-table__footer strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.top-revenue-table__footer-sep {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.top-revenue-table__legend {
+  margin: 10px 0 0;
+  font-size: var(--font-xs);
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 /* ---------- Metric filter chips ---------- */

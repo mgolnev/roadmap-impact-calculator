@@ -522,6 +522,7 @@ export default function HomePage() {
             projectedAnnual={projectedSimulation.annual}
             fullyImplementedAnnual={fullyImplementedSimulation.annual}
             fullyImplementedRates={fullyImplementedRates.rates}
+            taskMetrics={taskMetrics}
             topTasks={topTasks}
           />
 

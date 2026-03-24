@@ -1,9 +1,19 @@
 "use client";
 
+import { useMemo } from "react";
+
+import { TopTasksByRevenueTable } from "@/components/TopTasksByRevenueTable";
 import { getMonthLabel, getStageLabels, getText } from "@/lib/i18n";
-import { AdjustableStage, AnnualFunnel, FunnelRates, Task } from "@/lib/types";
+import { buildTopTasksRevenueBundle } from "@/lib/top-tasks-revenue";
+import {
+  AdjustableStage,
+  AnnualFunnel,
+  FunnelRates,
+  Locale,
+  Task,
+  TaskValueMetrics,
+} from "@/lib/types";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
-import { Locale } from "@/lib/types";
 
 type ImpactHighlightsProps = {
   locale: Locale;
@@ -24,6 +34,7 @@ type ImpactHighlightsProps = {
   projectedAnnual: AnnualFunnel;
   fullyImplementedAnnual: AnnualFunnel;
   fullyImplementedRates: FunnelRates;
+  taskMetrics: Record<string, TaskValueMetrics>;
   topTasks: Array<{
     projectName: string;
     value: number;
@@ -58,6 +69,11 @@ const deltaByFormatter = (
 export function ImpactHighlights(props: ImpactHighlightsProps) {
   const text = getText(props.locale);
   const stageLabels = getStageLabels(props.locale);
+  const topTasksRevenue = useMemo(
+    () =>
+      buildTopTasksRevenueBundle(props.tasks, props.taskMetrics, props.locale, (t) => t.active),
+    [props.locale, props.taskMetrics, props.tasks],
+  );
   const overviewRows = [
     {
       label: text.sessions,
@@ -350,6 +366,8 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
           )}
         </div>
       </div>
+
+      <TopTasksByRevenueTable locale={props.locale} data={topTasksRevenue} variant="dashboard" />
 
       <div className="top-tasks">
         <div className="top-tasks-header">

@@ -14,6 +14,17 @@ export const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(Number.isFinite(value) ? value : 0);
 
+/** Компактно для топ-таблиц: ₽123M при |value| ≥ 1M, иначе обычная сумма. */
+export const formatCurrencyMillionsRub = (value: number): string => {
+  if (!Number.isFinite(value)) return "—";
+  const sign = value < 0 ? "−" : "";
+  const v = Math.abs(value);
+  if (v < 1_000_000) return formatCurrency(value);
+  const m = v / 1_000_000;
+  const s = m >= 10 ? String(Math.round(m)) : String(Math.round(m * 10) / 10).replace(/\.0$/, "");
+  return `${sign}₽${s}M`;
+};
+
 export const formatImpactValue = (value: number, type?: string) => {
   if (!type) {
     return "—";
