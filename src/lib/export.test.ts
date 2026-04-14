@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import { describe, expect, it } from "vitest";
 
 import { buildRoadmapImpactWorkbook } from "@/lib/export";
+import { uniformSeasonalityWeights } from "@/lib/seasonality";
 import { BaselineInput, Task } from "@/lib/types";
 
 const baseline: BaselineInput = {
@@ -14,6 +15,7 @@ const baseline: BaselineInput = {
   buyoutRate: 0.62,
   atv: 2100,
   upt: 2.5,
+  seasonalityWeights: uniformSeasonalityWeights(),
 };
 
 const task: Task = {
@@ -34,6 +36,7 @@ const task: Task = {
   impact2Type: "absolute_pp",
   impact2Value: 0.02,
   releaseMonth: 4,
+  devCommittedReleaseMonth: 4,
   active: true,
   comment: "Test task",
 };

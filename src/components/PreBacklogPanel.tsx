@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { formatCurrency } from "@/lib/format";
 import {
   getMonthLabel,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/i18n";
 import { getTaskValueMetrics } from "@/lib/calculations";
 import { PRE_BACKLOG_STATUSES } from "@/lib/initiative";
+import { effectiveReleaseMonth } from "@/lib/timeline";
 import {
   AdjustableStage,
   BaselineInput,
@@ -26,7 +28,7 @@ import {
   Task,
   TaskValueMetrics,
 } from "@/lib/types";
-import { normalizeImpactType, normalizeStage } from "@/store/calculator-store";
+import { normalizeImpactType, normalizeStage, useCalculatorStore } from "@/store/calculator-store";
 
 import { EditableImpactInput } from "./TasksTable";
 
@@ -131,6 +133,7 @@ const draftToTask = (draft: IdeaDraft, locale: Locale): Task => ({
   impact2Type: draft.impact2Type,
   impact2Value: draft.impact2Value,
   releaseMonth: draft.releaseMonth,
+  devCommittedReleaseMonth: draft.releaseMonth,
   active: true,
   comment: "",
 });
@@ -157,6 +160,7 @@ function draftToPreviewTask(draft: IdeaDraft, locale: Locale): Task {
     impact2Type: draft.impact2Type,
     impact2Value: draft.impact2Value,
     releaseMonth: draft.releaseMonth,
+    devCommittedReleaseMonth: draft.releaseMonth,
     active: true,
     comment: "",
   };
@@ -254,6 +258,7 @@ export function PreBacklogPanel({
   onDuplicate,
   onPromoteToRoadmap,
 }: PreBacklogPanelProps) {
+  const timelineMode = useCalculatorStore((s) => s.timelineMode);
   const text = getText(locale);
   const stageLabels = getStageLabels(locale);
   const categoryLabels = IMPACT_CATEGORY_LABELS[locale];
@@ -288,14 +293,15 @@ export function PreBacklogPanel({
       const matchesProject = !projectFilter || projectName === projectFilter;
       const matchesStage =
         !stageFilter || task.stage1 === stageFilter || task.stage2 === stageFilter;
-      const matchesMonth = monthFilter === "" || task.releaseMonth === monthFilter;
+      const matchesMonth =
+        monthFilter === "" || effectiveReleaseMonth(task, timelineMode) === monthFilter;
       const haystack =
         `${projectName} ${task.taskName} ${task.comment} ${task.problemStatement} ${task.description}`.toLowerCase();
       const matchesSearch = !query || haystack.includes(query);
 
       return matchesProject && matchesStage && matchesMonth && matchesSearch;
     });
-  }, [initiatives, monthFilter, projectFilter, searchValue, stageFilter, text.noProject]);
+  }, [initiatives, monthFilter, projectFilter, searchValue, stageFilter, text.noProject, timelineMode]);
 
   const hasActiveIdeaFilters = !!(
     searchValue.trim() ||
@@ -326,9 +332,9 @@ export function PreBacklogPanel({
     if (!newIdeaFormOpen) return null;
     const previewTask = draftToPreviewTask(draft, locale);
     const allForPreview = [...initiatives, previewTask, ...roadmapTasks];
-    const map = getTaskValueMetrics(baseline, allForPreview, trafficChangePercent);
+    const map = getTaskValueMetrics(baseline, allForPreview, trafficChangePercent, { timelineMode });
     return map[IDEA_DRAFT_PREVIEW_TASK_ID] ?? null;
-  }, [baseline, draft, initiatives, locale, newIdeaFormOpen, roadmapTasks, trafficChangePercent]);
+  }, [baseline, draft, initiatives, locale, newIdeaFormOpen, roadmapTasks, trafficChangePercent, timelineMode]);
 
   /** Потенциал с учётом несохранённого черновика в развёрнутой карточке (store ещё со старыми значениями). */
   const expandedLiveMetrics = useMemo((): TaskValueMetrics | null => {
@@ -338,9 +344,10 @@ export function PreBacklogPanel({
       baseline,
       [...mergedInitiatives, ...roadmapTasks],
       trafficChangePercent,
+      { timelineMode },
     );
     return map[ideaEditDraft.id] ?? null;
-  }, [baseline, expandedId, ideaEditDraft, initiatives, roadmapTasks, trafficChangePercent]);
+  }, [baseline, expandedId, ideaEditDraft, initiatives, roadmapTasks, trafficChangePercent, timelineMode]);
 
   const resetDraft = useCallback(() => {
     setDraft(initialDraft(locale));
@@ -479,15 +486,16 @@ export function PreBacklogPanel({
   };
 
   return (
-    <section className="section-card pre-backlog-panel">
-      <div className="section-header">
-        <div>
-          <h2>{text.preBacklogTitle}</h2>
+    <CollapsibleSection
+      className="pre-backlog-panel"
+      title={text.preBacklogTitle}
+      description={
+        <>
           <p>{text.preBacklogDescription}</p>
           <p className="pre-backlog-note">{text.preBacklogPlanNote}</p>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {!newIdeaFormOpen ? (
         <div className="pre-backlog-new-idea-collapsed">
           <button
@@ -1047,6 +1055,6 @@ export function PreBacklogPanel({
           ) : null}
         </>
       )}
-    </section>
+    </CollapsibleSection>
   );
 }

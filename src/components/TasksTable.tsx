@@ -17,11 +17,33 @@ import {
   isRoadmapStatus,
   normalizeInitiativeStatus,
 } from "@/lib/initiative";
-import { AdjustableStage, ImpactType, InitiativeStatus, Locale, Priority, Task, TaskValueMetrics } from "@/lib/types";
-import { normalizeImpactType, normalizePriority, normalizeStage } from "@/store/calculator-store";
+import {
+  AdjustableStage,
+  ImpactType,
+  InitiativeStatus,
+  Locale,
+  Priority,
+  Task,
+  TaskValueMetrics,
+  TimelineMode,
+} from "@/lib/types";
+import { CollapsibleSection } from "@/components/CollapsibleSection";
+import {
+  compareRoadmapTasks,
+  type RoadmapSortColumn,
+  type RoadmapTableSortState,
+} from "@/lib/roadmap-table-sort";
+import { effectiveReleaseMonth } from "@/lib/timeline";
+import {
+  normalizeImpactType,
+  normalizePriority,
+  normalizeStage,
+  useCalculatorStore,
+} from "@/store/calculator-store";
 
 type TasksTableProps = {
   locale: Locale;
+  timelineMode: TimelineMode;
   tasks: Task[];
   taskMetrics: Record<string, TaskValueMetrics>;
   importState: { type: "success" | "error"; message: string } | null;
@@ -235,8 +257,40 @@ export function ImpactEditor({
   );
 }
 
+function RoadmapSortTh({
+  column,
+  label,
+  sort,
+  onToggle,
+  thClassName,
+  align = "left",
+}: {
+  column: RoadmapSortColumn;
+  label: string;
+  sort: RoadmapTableSortState | null;
+  onToggle: (c: RoadmapSortColumn) => void;
+  thClassName?: string;
+  align?: "left" | "center";
+}) {
+  const active = sort?.column === column;
+  const arrow = active ? (sort.direction === "asc" ? " ↑" : " ↓") : "";
+  return (
+    <th className={thClassName}>
+      <button
+        type="button"
+        className={`pm-sort-th ${align === "center" ? "pm-sort-th--center" : ""}`}
+        onClick={() => onToggle(column)}
+      >
+        {label}
+        {arrow}
+      </button>
+    </th>
+  );
+}
+
 export function TasksTable({
   locale,
+  timelineMode,
   tasks,
   taskMetrics,
   importState,
@@ -256,6 +310,9 @@ export function TasksTable({
   onDuplicate,
   onReorder,
 }: TasksTableProps) {
+  const roadmapTableSort = useCalculatorStore((s) => s.roadmapTableSort);
+  const toggleRoadmapTableSort = useCalculatorStore((s) => s.toggleRoadmapTableSort);
+  const resetRoadmapTableSort = useCalculatorStore((s) => s.resetRoadmapTableSort);
   const [searchValue, setSearchValue] = useState("");
   const setProjectFilter = onProjectFilterChange;
   const [monthFilter, setMonthFilter] = useState<number | "">("");
@@ -276,13 +333,23 @@ export function TasksTable({
       const matchesProject = !projectFilter || projectName === projectFilter;
       const matchesStage =
         !stageFilter || task.stage1 === stageFilter || task.stage2 === stageFilter;
-      const matchesMonth = monthFilter === "" || task.releaseMonth === monthFilter;
+      const matchesMonth =
+        monthFilter === "" || effectiveReleaseMonth(task, timelineMode) === monthFilter;
       const haystack = `${projectName} ${task.taskName} ${task.comment}`.toLowerCase();
       const matchesSearch = !query || haystack.includes(query);
 
       return matchesProject && matchesStage && matchesMonth && matchesSearch;
     });
-  }, [monthFilter, projectFilter, searchValue, stageFilter, tasks, text.noProject]);
+  }, [monthFilter, projectFilter, searchValue, stageFilter, tasks, text.noProject, timelineMode]);
+
+  const displayTasks = useMemo(() => {
+    if (!roadmapTableSort) return filteredTasks;
+    const { column, direction } = roadmapTableSort;
+    return [...filteredTasks].sort((a, b) =>
+      compareRoadmapTasks(a, b, taskMetrics[a.id], taskMetrics[b.id], column, direction),
+    );
+  }, [filteredTasks, roadmapTableSort, taskMetrics]);
+
   const activeTasksCount = useMemo(
     () => filteredTasks.filter((task) => task.active).length,
     [filteredTasks],
@@ -324,13 +391,7 @@ export function TasksTable({
   }, [movedToIdeasToast]);
 
   return (
-    <section className="section-card">
-      <div className="section-header">
-        <div>
-          <h2>{text.tasksTitle}</h2>
-        </div>
-      </div>
-
+    <CollapsibleSection title={text.tasksTitle}>
       <div className="tasks-filters tasks-filters--panel">
         <div className="filters-row filters-row-primary">
           <input
@@ -392,6 +453,16 @@ export function TasksTable({
           >
             {text.clearFilters}
           </button>
+          {roadmapTableSort ? (
+            <button
+              className="ghost-button clear-filters-button"
+              type="button"
+              title={text.roadmapTableSortResetHint}
+              onClick={() => resetRoadmapTableSort()}
+            >
+              {text.roadmapTableSortReset}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -518,29 +589,100 @@ export function TasksTable({
         {monthFilter ? ` • ${text.effectStart}: ${getMonthLabel(locale, monthFilter)}` : ""}
       </div>
 
-      <div className="table-wrap">
-        <table className="matrix-table tasks-table">
+      <div className="roadmap-tasks-table-wrap">
+        <div className="roadmap-tasks-table-scroll-x">
+        <table className="matrix-table tasks-table roadmap-tasks-table">
           <thead>
             <tr>
               <th className="sticky-col sticky-col-0 drag-col" aria-hidden />
-              <th className="sticky-col sticky-col-1 checkbox-col">{text.enabled}</th>
-              <th className="sticky-col sticky-col-2">{text.project}</th>
-              <th className="sticky-col sticky-col-3 wide-sticky">{text.task}</th>
-              <th>{text.primaryImpact}</th>
-              <th>{text.secondaryImpact}</th>
-              <th>{text.effectStart}</th>
-              <th>{text.activeMonths}</th>
-              <th>{text.standalone}</th>
-              <th>{text.incremental}</th>
-              <th>{text.valuePerMonth}</th>
-              <th>{text.comment}</th>
-              <th>{text.priority}</th>
-              <th>{text.initiativeStatus}</th>
+              <RoadmapSortTh
+                column="active"
+                label={text.enabled}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+                thClassName="sticky-col sticky-col-1 checkbox-col"
+                align="center"
+              />
+              <RoadmapSortTh
+                column="project"
+                label={text.project}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+                thClassName="sticky-col sticky-col-2"
+              />
+              <RoadmapSortTh
+                column="taskName"
+                label={text.task}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+                thClassName="sticky-col sticky-col-3 wide-sticky"
+              />
+              <RoadmapSortTh
+                column="primaryImpact"
+                label={text.primaryImpact}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+              />
+              <RoadmapSortTh
+                column="secondaryImpact"
+                label={text.secondaryImpact}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+              />
+              <RoadmapSortTh
+                column="releaseMonth"
+                label={text.tasksColReleasePlan}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+              />
+              <RoadmapSortTh
+                column="monthsActive"
+                label={text.activeMonths}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+              />
+              <RoadmapSortTh
+                column="standalone"
+                label={text.standalone}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+              />
+              <RoadmapSortTh
+                column="incremental"
+                label={text.incremental}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+              />
+              <RoadmapSortTh
+                column="valuePerMonth"
+                label={text.valuePerMonth}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+              />
+              <RoadmapSortTh
+                column="comment"
+                label={text.comment}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+              />
+              <RoadmapSortTh
+                column="priority"
+                label={text.priority}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+              />
+              <RoadmapSortTh
+                column="initiativeStatus"
+                label={text.initiativeStatus}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+                thClassName="tasks-col-initiative-status"
+              />
               <th>{text.actions}</th>
             </tr>
           </thead>
           <tbody>
-            {filteredTasks.map((task) => {
+            {displayTasks.map((task) => {
               const metrics = taskMetrics[task.id];
 
               return (
@@ -640,9 +782,9 @@ export function TasksTable({
                       ))}
                     </select>
                   </td>
-                  <td>
+                  <td className="tasks-col-initiative-status">
                     <select
-                      className="cell-input"
+                      className="cell-input roadmap-status-select"
                       title={text.roadmapStatusHint}
                       value={task.initiativeStatus}
                       onChange={(event) => {
@@ -692,6 +834,7 @@ export function TasksTable({
             </tr>
           </tfoot>
         </table>
+        </div>
       </div>
 
       {filteredTasks.length === 0 ? (
@@ -708,6 +851,6 @@ export function TasksTable({
           {movedToIdeasToast}
         </div>
       ) : null}
-    </section>
+    </CollapsibleSection>
   );
 }

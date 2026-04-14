@@ -1,6 +1,7 @@
 import { DEFAULT_BASELINE } from "@/lib/constants";
 import { withInitiativeDefaults } from "@/lib/initiative";
-import type { SharedRoadmapPayload, Task } from "@/lib/types";
+import { normalizeSeasonalityWeights } from "@/lib/seasonality";
+import type { SharedRoadmapPayload, Task, TimelineMode } from "@/lib/types";
 import { getSupabaseClientAsync } from "@/lib/supabase";
 import { useCalculatorStore } from "@/store/calculator-store";
 import { usePMStore } from "@/store/pm-store";
@@ -9,13 +10,22 @@ function normalizeServerPayload(
   raw: Partial<SharedRoadmapPayload> | null | undefined,
 ): SharedRoadmapPayload | null {
   if (!raw || !Array.isArray(raw.tasks)) return null;
+  const timelineMode: TimelineMode =
+    raw.timelineMode === "dev_committed" ? "dev_committed" : "plan";
+
+  const mergedBaseline = { ...DEFAULT_BASELINE, ...(raw.baseline ?? {}) };
+
   return {
-    baseline: raw.baseline ?? DEFAULT_BASELINE,
+    baseline: {
+      ...mergedBaseline,
+      seasonalityWeights: normalizeSeasonalityWeights(mergedBaseline.seasonalityWeights),
+    },
     tasks: (raw.tasks as Task[]).map((t) => withInitiativeDefaults(t)),
     ideas: Array.isArray(raw.ideas)
       ? (raw.ideas as Task[]).map((t) => withInitiativeDefaults(t))
       : [],
     trafficChangePercent: raw.trafficChangePercent ?? 0,
+    timelineMode,
     locale: raw.locale ?? "ru",
     pmData: raw.pmData && typeof raw.pmData === "object" ? raw.pmData : {},
   };
@@ -56,6 +66,7 @@ export async function persistIdeasOnlyToSupabase(ideas: Task[]): Promise<{ ok: b
       tasks: calc.tasks,
       ideas: normalizedIdeas,
       trafficChangePercent: calc.trafficChangePercent,
+      timelineMode: calc.timelineMode,
       locale: calc.locale,
       pmData: pm.pmData,
       _writeMode: "ideas",

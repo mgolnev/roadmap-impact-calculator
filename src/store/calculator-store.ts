@@ -2,13 +2,28 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { DEFAULT_BASELINE, DEFAULT_TASKS } from "@/lib/constants";
+import { normalizeSeasonalityWeights, uniformSeasonalityWeights } from "@/lib/seasonality";
 import {
   buildDemotedIdeaTaskFromRoadmapTask,
   buildPromotedRoadmapTaskFromIdea,
   isPreBacklogStatus,
   withInitiativeDefaults,
 } from "@/lib/initiative";
-import { AdjustableStage, BaselineInput, ImpactType, InitiativeStatus, Locale, Priority, Task } from "@/lib/types";
+import {
+  parsePersistedRoadmapTableSort,
+  type RoadmapSortColumn,
+  type RoadmapTableSortState,
+} from "@/lib/roadmap-table-sort";
+import {
+  AdjustableStage,
+  BaselineInput,
+  ImpactType,
+  InitiativeStatus,
+  Locale,
+  Priority,
+  Task,
+  TimelineMode,
+} from "@/lib/types";
 
 type StoreState = {
   baseline: BaselineInput;
@@ -17,9 +32,18 @@ type StoreState = {
   /** Pre-backlog: draft / hypothesis — отдельно от roadmap. */
   ideas: Task[];
   trafficChangePercent: number;
+  /** Сценарий сроков: продуктовый план или коммит разработки (PM). */
+  timelineMode: TimelineMode;
   locale: Locale;
+  /** Сортировка таблицы задач на вкладке «Бизнес и продукт» (null — порядок как в store). */
+  roadmapTableSort: RoadmapTableSortState | null;
   setBaseline: (baseline: BaselineInput) => void;
-  updateBaseline: <K extends keyof BaselineInput>(key: K, value: number) => void;
+  updateBaseline: <K extends Exclude<keyof BaselineInput, "seasonalityWeights">>(
+    key: K,
+    value: BaselineInput[K],
+  ) => void;
+  setSeasonalityWeights: (weights: number[]) => void;
+  resetSeasonalityWeights: () => void;
   updateTask: <K extends keyof Task>(id: string, key: K, value: Task[K]) => void;
   updateIdea: <K extends keyof Task>(id: string, key: K, value: Task[K]) => void;
   setTasks: (tasks: Task[]) => void;
@@ -36,7 +60,10 @@ type StoreState = {
   duplicateIdea: (id: string) => void;
   reorderTasks: (draggedId: string, targetId: string) => void;
   setTrafficChangePercent: (value: number) => void;
+  setTimelineMode: (mode: TimelineMode) => void;
   setLocale: (locale: Locale) => void;
+  toggleRoadmapTableSort: (column: RoadmapSortColumn) => void;
+  resetRoadmapTableSort: () => void;
 };
 
 const newRoadmapTaskTemplate = (index: number): Task => ({
@@ -57,6 +84,7 @@ const newRoadmapTaskTemplate = (index: number): Task => ({
   impact2Type: undefined,
   impact2Value: 0,
   releaseMonth: 1,
+  devCommittedReleaseMonth: 1,
   active: true,
   comment: "",
 });
@@ -68,18 +96,41 @@ export const useCalculatorStore = create<StoreState>()(
       tasks: DEFAULT_TASKS,
       ideas: [],
       trafficChangePercent: 0,
+      timelineMode: "plan",
       locale: "ru",
-      setBaseline: (baseline) =>
-        set({
-          baseline: {
-            ...baseline,
-          },
+      roadmapTableSort: null,
+      setBaseline: (incoming) =>
+        set((state) => {
+          const merged = { ...state.baseline, ...incoming };
+          return {
+            baseline: {
+              ...merged,
+              seasonalityWeights: normalizeSeasonalityWeights(merged.seasonalityWeights),
+            },
+          };
         }),
       updateBaseline: (key, value) =>
+        set((state) => {
+          const num = value as number;
+          return {
+            baseline: {
+              ...state.baseline,
+              [key]: Number.isFinite(num) ? num : 0,
+            },
+          };
+        }),
+      setSeasonalityWeights: (weights) =>
         set((state) => ({
           baseline: {
             ...state.baseline,
-            [key]: Number.isFinite(value) ? value : 0,
+            seasonalityWeights: normalizeSeasonalityWeights(weights),
+          },
+        })),
+      resetSeasonalityWeights: () =>
+        set((state) => ({
+          baseline: {
+            ...state.baseline,
+            seasonalityWeights: uniformSeasonalityWeights(),
           },
         })),
       updateTask: (id, key, value) =>
@@ -211,11 +262,24 @@ export const useCalculatorStore = create<StoreState>()(
         set({
           trafficChangePercent: Number.isFinite(value) ? value : 0,
         }),
+      setTimelineMode: (timelineMode) => set({ timelineMode }),
       setLocale: (locale) => set({ locale }),
+      toggleRoadmapTableSort: (column) =>
+        set((state) => {
+          const cur = state.roadmapTableSort;
+          if (cur?.column === column) {
+            return {
+              roadmapTableSort:
+                cur.direction === "asc" ? { column, direction: "desc" } : null,
+            };
+          }
+          return { roadmapTableSort: { column, direction: "asc" } };
+        }),
+      resetRoadmapTableSort: () => set({ roadmapTableSort: null }),
     }),
     {
       name: "roadmap-impact-calculator-store",
-      version: 4,
+      version: 7,
       migrate: (persistedState, persistedVersion) => {
         const version = typeof persistedVersion === "number" ? persistedVersion : 0;
         const state = persistedState as {
@@ -225,11 +289,14 @@ export const useCalculatorStore = create<StoreState>()(
             atc?: number;
             checkout?: number;
             orders?: number;
+            seasonalityWeights?: unknown;
           };
           tasks?: Array<Task & { stream?: string }>;
           ideas?: Task[];
           trafficChangePercent?: number;
+          timelineMode?: TimelineMode;
           locale?: Locale;
+          roadmapTableSort?: unknown;
         };
 
         const baselineState = state?.baseline;
@@ -241,32 +308,33 @@ export const useCalculatorStore = create<StoreState>()(
           typeof baselineState?.orders === "number" &&
           typeof baselineState?.sessions === "number";
 
-        const migratedBaseline: BaselineInput = hasLegacyAbsoluteBaseline
-          ? {
-              sessions: baselineState.sessions ?? DEFAULT_BASELINE.sessions,
-              catalogCr:
-                (baselineState.catalog ?? 0) / Math.max(baselineState.sessions ?? 1, 1),
-              pdpCr: (baselineState.pdp ?? 0) / Math.max(baselineState.catalog ?? 1, 1),
-              atcCr: (baselineState.atc ?? 0) / Math.max(baselineState.pdp ?? 1, 1),
-              checkoutCr:
-                (baselineState.checkout ?? 0) / Math.max(baselineState.atc ?? 1, 1),
-              orderCr:
-                (baselineState.orders ?? 0) / Math.max(baselineState.checkout ?? 1, 1),
-              buyoutRate: baselineState.buyoutRate ?? DEFAULT_BASELINE.buyoutRate,
-              atv: baselineState.atv ?? DEFAULT_BASELINE.atv,
-              upt: baselineState.upt ?? DEFAULT_BASELINE.upt,
-            }
-          : {
-              sessions: baselineState?.sessions ?? DEFAULT_BASELINE.sessions,
-              catalogCr: baselineState?.catalogCr ?? DEFAULT_BASELINE.catalogCr,
-              pdpCr: baselineState?.pdpCr ?? DEFAULT_BASELINE.pdpCr,
-              atcCr: baselineState?.atcCr ?? DEFAULT_BASELINE.atcCr,
-              checkoutCr: baselineState?.checkoutCr ?? DEFAULT_BASELINE.checkoutCr,
-              orderCr: baselineState?.orderCr ?? DEFAULT_BASELINE.orderCr,
-              buyoutRate: baselineState?.buyoutRate ?? DEFAULT_BASELINE.buyoutRate,
-              atv: baselineState?.atv ?? DEFAULT_BASELINE.atv,
-              upt: baselineState?.upt ?? DEFAULT_BASELINE.upt,
-            };
+        const migratedBaselineCore: Omit<BaselineInput, "seasonalityWeights"> =
+          hasLegacyAbsoluteBaseline
+            ? {
+                sessions: baselineState.sessions ?? DEFAULT_BASELINE.sessions,
+                catalogCr:
+                  (baselineState.catalog ?? 0) / Math.max(baselineState.sessions ?? 1, 1),
+                pdpCr: (baselineState.pdp ?? 0) / Math.max(baselineState.catalog ?? 1, 1),
+                atcCr: (baselineState.atc ?? 0) / Math.max(baselineState.pdp ?? 1, 1),
+                checkoutCr:
+                  (baselineState.checkout ?? 0) / Math.max(baselineState.atc ?? 1, 1),
+                orderCr:
+                  (baselineState.orders ?? 0) / Math.max(baselineState.checkout ?? 1, 1),
+                buyoutRate: baselineState.buyoutRate ?? DEFAULT_BASELINE.buyoutRate,
+                atv: baselineState.atv ?? DEFAULT_BASELINE.atv,
+                upt: baselineState.upt ?? DEFAULT_BASELINE.upt,
+              }
+            : {
+                sessions: baselineState?.sessions ?? DEFAULT_BASELINE.sessions,
+                catalogCr: baselineState?.catalogCr ?? DEFAULT_BASELINE.catalogCr,
+                pdpCr: baselineState?.pdpCr ?? DEFAULT_BASELINE.pdpCr,
+                atcCr: baselineState?.atcCr ?? DEFAULT_BASELINE.atcCr,
+                checkoutCr: baselineState?.checkoutCr ?? DEFAULT_BASELINE.checkoutCr,
+                orderCr: baselineState?.orderCr ?? DEFAULT_BASELINE.orderCr,
+                buyoutRate: baselineState?.buyoutRate ?? DEFAULT_BASELINE.buyoutRate,
+                atv: baselineState?.atv ?? DEFAULT_BASELINE.atv,
+                upt: baselineState?.upt ?? DEFAULT_BASELINE.upt,
+              };
 
         let migratedTasks =
           state?.tasks?.map((task) => ({
@@ -275,26 +343,51 @@ export const useCalculatorStore = create<StoreState>()(
             priority: (task.priority as Priority | undefined) ?? "p2",
           })) ?? DEFAULT_TASKS;
 
-        migratedTasks = migratedTasks.map((task) => withInitiativeDefaults(task as Task));
+        migratedTasks = migratedTasks.map((task) =>
+          withInitiativeDefaults({
+            ...(task as Task),
+            devCommittedReleaseMonth:
+              (task as Task).devCommittedReleaseMonth ?? (task as Task).releaseMonth,
+          }),
+        );
 
         let ideas: Task[] = [];
         if (version >= 4) {
-          ideas = (state.ideas ?? []).map((t) => withInitiativeDefaults(t as Task));
+          ideas = (state.ideas ?? []).map((t) =>
+            withInitiativeDefaults({
+              ...(t as Task),
+              devCommittedReleaseMonth:
+                (t as Task).devCommittedReleaseMonth ?? (t as Task).releaseMonth,
+            }),
+          );
         } else {
-          const normalized = migratedTasks.map((t) => withInitiativeDefaults(t as Task));
-          ideas = normalized.filter((t) => isPreBacklogStatus(t.initiativeStatus));
-          migratedTasks = normalized.filter((t) => !isPreBacklogStatus(t.initiativeStatus));
+          ideas = migratedTasks.filter((t) => isPreBacklogStatus(t.initiativeStatus));
+          migratedTasks = migratedTasks.filter((t) => !isPreBacklogStatus(t.initiativeStatus));
           if (migratedTasks.length === 0) {
             migratedTasks = DEFAULT_TASKS;
           }
         }
 
+        const timelineMode: TimelineMode =
+          state.timelineMode === "dev_committed" ? "dev_committed" : "plan";
+
+        const roadmapTableSort =
+          version >= 6 ? parsePersistedRoadmapTableSort(state.roadmapTableSort) : null;
+
+        const seasonalityWeights = normalizeSeasonalityWeights(
+          Array.isArray(baselineState?.seasonalityWeights)
+            ? (baselineState.seasonalityWeights as number[])
+            : undefined,
+        );
+
         return {
-          baseline: migratedBaseline,
+          baseline: { ...migratedBaselineCore, seasonalityWeights },
           tasks: migratedTasks,
           ideas,
           trafficChangePercent: state?.trafficChangePercent ?? 0,
+          timelineMode,
           locale: state?.locale ?? "ru",
+          roadmapTableSort,
         };
       },
     },

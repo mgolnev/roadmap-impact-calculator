@@ -14,13 +14,6 @@ export function MonthlyModelTable({ locale, rows }: MonthlyModelTableProps) {
   const text = getText(locale);
   return (
     <>
-      <div className="section-header">
-        <div>
-          <h2>{text.monthlyTitle}</h2>
-          <p>{text.monthlyDescription}</p>
-        </div>
-      </div>
-
       <div className="table-wrap">
         <table className="matrix-table wide">
           <thead>

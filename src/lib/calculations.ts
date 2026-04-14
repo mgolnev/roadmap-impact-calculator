@@ -12,7 +12,10 @@ import {
   SimulationResult,
   Task,
   TaskValueMetrics,
+  TimelineMode,
 } from "@/lib/types";
+import { normalizeSeasonalityWeights } from "@/lib/seasonality";
+import { effectiveReleaseMonth } from "@/lib/timeline";
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -203,25 +206,24 @@ const toAnnualFunnel = (months: MonthlyRow[]): AnnualFunnel => {
   return annual;
 };
 
-const getMonthlyBase = (baseline: BaselineInput) => ({
-  sessions: baseline.sessions / 12,
-  atv: baseline.atv,
-  buyoutRate: baseline.buyoutRate,
-  upt: baseline.upt,
-});
-
 export const simulateScenario = (
   baseline: BaselineInput,
   tasks: Task[],
   trafficMultiplier: number,
+  options?: { timelineMode?: TimelineMode },
 ): SimulationResult => {
+  const timelineMode: TimelineMode = options?.timelineMode ?? "plan";
   const baseRates = getBaseRates(baseline);
-  const monthlyBase = getMonthlyBase(baseline);
+  const seasonalityWeights = normalizeSeasonalityWeights(baseline.seasonalityWeights);
+  const monthlyAtv = baseline.atv;
+  const monthlyBuyoutRate = baseline.buyoutRate;
+  const monthlyUpt = baseline.upt;
 
   const months: MonthlyRow[] = Array.from({ length: 12 }, (_, index) => {
     const month = index + 1;
     const activeTasks = tasks.filter(
-      (task) => taskCountsTowardPlan(task) && task.releaseMonth <= month,
+      (task) =>
+        taskCountsTowardPlan(task) && effectiveReleaseMonth(task, timelineMode) <= month,
     );
 
     const trafficImpacts = activeTasks.flatMap((task) => getTaskImpact(task, "traffic"));
@@ -235,7 +237,7 @@ export const simulateScenario = (
     const uptImpacts = activeTasks.flatMap((task) => getTaskImpact(task, "upt"));
 
     const sessions = applyImpacts(
-      monthlyBase.sessions * trafficMultiplier,
+      baseline.sessions * seasonalityWeights[index] * trafficMultiplier,
       trafficImpacts,
       "unbounded",
     );
@@ -245,9 +247,9 @@ export const simulateScenario = (
     const checkoutCr = applyImpacts(baseRates.checkoutCr, checkoutImpacts, "rate");
     const orderCr = applyImpacts(baseRates.orderCr, orderImpacts, "rate");
 
-    const atv = applyImpacts(monthlyBase.atv, atvImpacts, "unbounded");
-    const buyoutRate = applyImpacts(monthlyBase.buyoutRate, buyoutImpacts, "rate");
-    const upt = applyImpacts(monthlyBase.upt, uptImpacts, "unbounded");
+    const atv = applyImpacts(monthlyAtv, atvImpacts, "unbounded");
+    const buyoutRate = applyImpacts(monthlyBuyoutRate, buyoutImpacts, "rate");
+    const upt = applyImpacts(monthlyUpt, uptImpacts, "unbounded");
 
     const catalog = sessions * catalogCr;
     const pdp = catalog * pdpCr;
@@ -256,7 +258,7 @@ export const simulateScenario = (
     const orders = checkout * orderCr;
     const orderUnits = orders * upt;
     /* UPT impacts revenue: higher UPT (e.g. cross-sell) typically increases basket value */
-    const uptRevenueFactor = monthlyBase.upt > 0 ? upt / monthlyBase.upt : 1;
+    const uptRevenueFactor = monthlyUpt > 0 ? upt / monthlyUpt : 1;
     const grossRevenue = orders * atv * uptRevenueFactor;
     const netRevenue = grossRevenue * buyoutRate;
     const asp = safeDivide(grossRevenue, orderUnits);
@@ -292,6 +294,7 @@ const simulateWithSingleTask = (
   tasks: Task[],
   taskId: string,
   trafficMultiplier: number,
+  timelineMode: TimelineMode,
 ) =>
   simulateScenario(
     baseline,
@@ -306,19 +309,23 @@ const simulateWithSingleTask = (
         : { ...task, active: false },
     ),
     trafficMultiplier,
+    { timelineMode },
   );
 
 const getPlanContributionByTaskId = (
   baseline: BaselineInput,
   tasks: Task[],
   trafficMultiplier: number,
+  timelineMode: TimelineMode,
 ) => {
   const activeTasksInPlanOrder = tasks
     .map((task, index) => ({ task, index }))
     .filter(({ task }) => taskCountsTowardPlan(task))
     .sort((left, right) => {
-      if (left.task.releaseMonth !== right.task.releaseMonth) {
-        return left.task.releaseMonth - right.task.releaseMonth;
+      const lm = effectiveReleaseMonth(left.task, timelineMode);
+      const rm = effectiveReleaseMonth(right.task, timelineMode);
+      if (lm !== rm) {
+        return lm - rm;
       }
 
       return left.index - right.index;
@@ -326,7 +333,8 @@ const getPlanContributionByTaskId = (
     .map(({ task }) => task);
 
   const contributions = new Map<string, number>();
-  let previousNetRevenue = simulateScenario(baseline, [], trafficMultiplier).annual.netRevenue;
+  let previousNetRevenue = simulateScenario(baseline, [], trafficMultiplier, { timelineMode }).annual
+    .netRevenue;
 
   activeTasksInPlanOrder.forEach((task, index) => {
     const scenarioTasks = activeTasksInPlanOrder.slice(0, index + 1);
@@ -337,6 +345,7 @@ const getPlanContributionByTaskId = (
         active: scenarioTasks.some((scenarioTask) => scenarioTask.id === entry.id),
       })),
       trafficMultiplier,
+      { timelineMode },
     ).annual.netRevenue;
 
     contributions.set(task.id, currentNetRevenue - previousNetRevenue);
@@ -350,32 +359,40 @@ export const getTaskValueMetrics = (
   baseline: BaselineInput,
   tasks: Task[],
   currentTrafficChangePercent: number,
+  options?: { timelineMode?: TimelineMode },
 ): Record<string, TaskValueMetrics> => {
-  const baseScenarioNet = simulateScenario(baseline, [], getTrafficMultiplier(0)).annual.netRevenue;
-  const plus15BaseNet = simulateScenario(baseline, [], getTrafficMultiplier(15)).annual.netRevenue;
-  const plus20BaseNet = simulateScenario(baseline, [], getTrafficMultiplier(20)).annual.netRevenue;
-  const plus30BaseNet = simulateScenario(baseline, [], getTrafficMultiplier(30)).annual.netRevenue;
+  const timelineMode: TimelineMode = options?.timelineMode ?? "plan";
+  const baseScenarioNet = simulateScenario(baseline, [], getTrafficMultiplier(0), { timelineMode }).annual
+    .netRevenue;
+  const plus15BaseNet = simulateScenario(baseline, [], getTrafficMultiplier(15), { timelineMode }).annual
+    .netRevenue;
+  const plus20BaseNet = simulateScenario(baseline, [], getTrafficMultiplier(20), { timelineMode }).annual
+    .netRevenue;
+  const plus30BaseNet = simulateScenario(baseline, [], getTrafficMultiplier(30), { timelineMode }).annual
+    .netRevenue;
   const currentPlanContributions = getPlanContributionByTaskId(
     baseline,
     tasks,
     getTrafficMultiplier(currentTrafficChangePercent),
+    timelineMode,
   );
 
   return Object.fromEntries(
     tasks.map((task) => {
       const standaloneBase =
-        simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(0)).annual.netRevenue -
-        baseScenarioNet;
+        simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(0), timelineMode).annual
+          .netRevenue - baseScenarioNet;
       const standalone15 =
-        simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(15)).annual.netRevenue -
-        plus15BaseNet;
+        simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(15), timelineMode).annual
+          .netRevenue - plus15BaseNet;
       const standalone20 =
-        simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(20)).annual.netRevenue -
-        plus20BaseNet;
+        simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(20), timelineMode).annual
+          .netRevenue - plus20BaseNet;
       const standalone30 =
-        simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(30)).annual.netRevenue -
-        plus30BaseNet;
-      const monthsActive = Math.max(0, 13 - task.releaseMonth);
+        simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(30), timelineMode).annual
+          .netRevenue - plus30BaseNet;
+      const effMonth = effectiveReleaseMonth(task, timelineMode);
+      const monthsActive = Math.max(0, 13 - effMonth);
       const incrementalCurrent = taskCountsTowardPlan(task)
         ? currentPlanContributions.get(task.id) ?? 0
         : 0;

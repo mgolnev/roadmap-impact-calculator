@@ -26,6 +26,7 @@ const REFERENCE_SHEET_NAME: Record<Locale, string> = {
 };
 
 const HEADER_KEYS = [
+  "taskId",
   "active",
   "project",
   "taskName",
@@ -43,6 +44,7 @@ const HEADER_KEYS = [
   "impact2Type",
   "impact2Value",
   "releaseMonth",
+  "devCommittedReleaseMonth",
   "comment",
 ] as const;
 
@@ -50,6 +52,7 @@ type TemplateHeaderKey = (typeof HEADER_KEYS)[number];
 
 const HEADER_LABELS: Record<Locale, Record<TemplateHeaderKey, string>> = {
   ru: {
+    taskId: "task_id",
     active: "active",
     project: "project",
     taskName: "task_name",
@@ -67,9 +70,11 @@ const HEADER_LABELS: Record<Locale, Record<TemplateHeaderKey, string>> = {
     impact2Type: "impact_2_type",
     impact2Value: "impact_2_value",
     releaseMonth: "release_month",
+    devCommittedReleaseMonth: "dev_committed_release_month",
     comment: "comment",
   },
   en: {
+    taskId: "task_id",
     active: "active",
     project: "project",
     taskName: "task_name",
@@ -87,11 +92,13 @@ const HEADER_LABELS: Record<Locale, Record<TemplateHeaderKey, string>> = {
     impact2Type: "impact_2_type",
     impact2Value: "impact_2_value",
     releaseMonth: "release_month",
+    devCommittedReleaseMonth: "dev_committed_release_month",
     comment: "comment",
   },
 };
 
 const HEADER_ALIASES: Record<TemplateHeaderKey, string[]> = {
+  taskId: ["taskid", "task_id", "id"],
   active: ["active", "enabled", "on", "вкл", "включена"],
   project: ["project", "проект"],
   taskName: ["taskname", "task_name", "task", "задача", "task name"],
@@ -109,6 +116,13 @@ const HEADER_ALIASES: Record<TemplateHeaderKey, string[]> = {
   impact2Type: ["impact2type", "impact_2_type", "secondaryimpacttype", "доптип", "тип2"],
   impact2Value: ["impact2value", "impact_2_value", "secondaryimpactvalue", "допзначение", "значение2"],
   releaseMonth: ["releasemonth", "release_month", "month", "месяцрелиза", "стартэффекта"],
+  devCommittedReleaseMonth: [
+    "devcommittedreleasemonth",
+    "dev_committed_release_month",
+    "pmrelease",
+    "месяцкоммитаразработки",
+    "релизпм",
+  ],
   comment: ["comment", "notes", "комментарий", "гипотеза"],
 };
 
@@ -293,6 +307,7 @@ const cellValue = (row: unknown[], columnMap: Map<TemplateHeaderKey, number>, ke
 const isRowEmpty = (row: unknown[]) => row.every((cell) => String(cell ?? "").trim() === "");
 
 const buildImportRow = (task: Task) => ({
+  task_id: task.id,
   active: task.active,
   project: task.project,
   task_name: task.taskName,
@@ -310,6 +325,7 @@ const buildImportRow = (task: Task) => ({
   impact_2_type: task.impact2Type ?? "",
   impact_2_value: formatTemplateImpactValue(task.impact2Type, task.impact2Value),
   release_month: task.releaseMonth,
+  dev_committed_release_month: task.devCommittedReleaseMonth,
   comment: task.comment,
 });
 
@@ -318,6 +334,13 @@ export const tasksToTemplateExportRows = (tasks: Task[]) => tasks.map(buildImpor
 const buildGuideRows = (locale: Locale) => {
   if (locale === "ru") {
     return [
+      {
+        field: "task_id",
+        required: "нет",
+        description: "Стабильный id задачи (для бэкапа сценария и листа PM); пусто — сгенерируется при импорте",
+        format: "текст, без пробелов по краям",
+        example: "task-1",
+      },
       {
         field: "active",
         required: "нет",
@@ -377,9 +400,17 @@ const buildGuideRows = (locale: Locale) => {
       {
         field: "release_month",
         required: "да",
-        description: "Месяц, с которого задача начинает влиять",
+        description: "Месяц старта эффекта в продуктовом плане",
         format: "число от 1 до 12",
         example: "4",
+      },
+      {
+        field: "dev_committed_release_month",
+        required: "нет",
+        description:
+          "Месяц готовности по коммиту разработки (PM); пусто = как release_month. Для переключателя сроков в приложении",
+        format: "число от 1 до 12",
+        example: "6",
       },
       {
         field: "comment",
@@ -399,6 +430,13 @@ const buildGuideRows = (locale: Locale) => {
   }
 
   return [
+    {
+      field: "task_id",
+      required: "no",
+      description: "Stable task id (scenario backup + PM sheet); empty = generated on import",
+      format: "text, trimmed",
+      example: "task-1",
+    },
     {
       field: "active",
       required: "no",
@@ -458,9 +496,17 @@ const buildGuideRows = (locale: Locale) => {
     {
       field: "release_month",
       required: "yes",
-      description: "Month when the task starts affecting the model",
+      description: "Month when the task starts affecting the model (product plan)",
       format: "number from 1 to 12",
       example: "4",
+    },
+    {
+      field: "dev_committed_release_month",
+      required: "no",
+      description:
+        "Month dev committed to ship (PM); if empty, same as release_month. Used when the app timeline mode is “dev commitment”",
+      format: "number from 1 to 12",
+      example: "6",
     },
     {
       field: "comment",
@@ -529,7 +575,7 @@ const applyColumnWidths = (sheet: XLSX.WorkSheet, widths: number[]) => {
 
 /** Ширины колонок листа шаблона задач (roadmap / идеи). */
 export const TASK_TEMPLATE_COLUMN_WIDTHS = [
-  10, 20, 28, 24, 28, 28, 18, 12, 8, 14, 16, 20, 16, 16, 20, 16, 14, 40,
+  22, 10, 20, 28, 24, 28, 28, 18, 12, 8, 14, 16, 20, 16, 16, 20, 16, 14, 18, 40,
 ];
 
 export const buildTaskImportWorkbook = ({
@@ -639,6 +685,9 @@ export const parseTaskImportWorkbook = (
     const impact2TypeRaw = cellValue(row, columnMap, "impact2Type");
     const impact2ValueRaw = cellValue(row, columnMap, "impact2Value");
     const releaseMonthRaw = cellValue(row, columnMap, "releaseMonth");
+    const devCommittedRaw = columnMap.has("devCommittedReleaseMonth")
+      ? cellValue(row, columnMap, "devCommittedReleaseMonth")
+      : "";
     const activeRaw = cellValue(row, columnMap, "active");
     const comment = cellValue(row, columnMap, "comment");
 
@@ -724,15 +773,32 @@ export const parseTaskImportWorkbook = (
       return;
     }
 
+    let devCommittedReleaseMonth = releaseMonth;
+    if (devCommittedRaw) {
+      const dm = parseMonth(devCommittedRaw);
+      if (dm === null) {
+        errors.push(
+          locale === "ru"
+            ? `Строка ${lineNumber}: dev_committed_release_month должен быть числом от 1 до 12.`
+            : `Row ${lineNumber}: dev_committed_release_month must be a number from 1 to 12.`,
+        );
+        return;
+      }
+      devCommittedReleaseMonth = dm;
+    }
+
     const active = parseBoolean(activeRaw);
     if (active === null) {
       errors.push(locale === "ru" ? `Строка ${lineNumber}: неверное значение active.` : `Row ${lineNumber}: invalid active value.`);
       return;
     }
 
+    const persistedId = columnMap.has("taskId") ? cellValue(row, columnMap, "taskId").trim() : "";
+    const taskId = persistedId || `task-import-${Date.now()}-${rowIndex}`;
+
     tasks.push(
       withInitiativeDefaults({
-        id: `task-import-${Date.now()}-${rowIndex}`,
+        id: taskId,
         active,
         project: project || (locale === "ru" ? "Без проекта" : "No project"),
         taskName,
@@ -752,6 +818,7 @@ export const parseTaskImportWorkbook = (
         impact2Type: impact2Type ?? undefined,
         impact2Value: impact2Type ? impact2Value ?? 0 : 0,
         releaseMonth,
+        devCommittedReleaseMonth,
         comment,
       } as Task),
     );

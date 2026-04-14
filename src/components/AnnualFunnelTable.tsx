@@ -21,13 +21,6 @@ export function AnnualFunnelTable({ locale, baseline, projected }: AnnualFunnelT
   const text = getText(locale);
   return (
     <>
-      <div className="section-header">
-        <div>
-          <h2>{text.annualTitle}</h2>
-          <p>{text.annualDescription}</p>
-        </div>
-      </div>
-
       <div className="table-wrap">
         <table className="matrix-table wide">
           <thead>

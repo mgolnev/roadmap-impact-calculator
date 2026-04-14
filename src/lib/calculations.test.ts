@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_BASELINE } from "@/lib/constants";
 import { getTaskValueMetrics, getTrafficMultiplier, simulateScenario } from "@/lib/calculations";
 import { withInitiativeDefaults } from "@/lib/initiative";
+import { normalizeSeasonalityWeights } from "@/lib/seasonality";
 import { BaselineInput, Task } from "@/lib/types";
 
 const baseline: BaselineInput = {
+  ...DEFAULT_BASELINE,
   sessions: 1200,
   catalogCr: 0.6,
   pdpCr: 0.5,
@@ -113,9 +116,41 @@ describe("simulateScenario", () => {
     expect(result.months[4].orders).toBeCloseTo(3.6, 6);
   });
 
+  it("uses dev_committed release month when timeline mode requests it", () => {
+    const tasks = [
+      createTask({
+        id: "t1",
+        stage1: "order",
+        impact1Type: "relative_percent",
+        impact1Value: 0.2,
+        releaseMonth: 4,
+        devCommittedReleaseMonth: 7,
+      }),
+    ];
+
+    const plan = simulateScenario(baseline, tasks, getTrafficMultiplier(0), { timelineMode: "plan" });
+    const dev = simulateScenario(baseline, tasks, getTrafficMultiplier(0), {
+      timelineMode: "dev_committed",
+    });
+
+    expect(plan.months[3].orders).toBeCloseTo(3.6, 6);
+    expect(dev.months[3].orders).toBeCloseTo(3, 6);
+    expect(dev.months[6].orders).toBeCloseTo(3.6, 6);
+  });
+
   it("changes sessions with a custom traffic multiplier", () => {
     const result = simulateScenario(baseline, [], getTrafficMultiplier(-10));
     expect(result.annual.sessions).toBeCloseTo(1080, 6);
+  });
+
+  it("sums monthly sessions to annual sessions times traffic multiplier using seasonality weights", () => {
+    const skewed = normalizeSeasonalityWeights([3, ...Array(11).fill(1)]);
+    const b: BaselineInput = { ...baseline, seasonalityWeights: skewed };
+    const mult = getTrafficMultiplier(5);
+    const result = simulateScenario(b, [], mult);
+    const sumM = result.months.reduce((acc, row) => acc + row.sessions, 0);
+    expect(sumM).toBeCloseTo(baseline.sessions * mult, 4);
+    expect(result.months[0].sessions).toBeGreaterThan(result.months[1].sessions);
   });
 
   it("applies UPT impact and updates orderUnits", () => {

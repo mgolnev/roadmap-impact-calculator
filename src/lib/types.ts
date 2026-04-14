@@ -1,5 +1,8 @@
 export type FunnelStage = "catalog" | "pdp" | "atc" | "checkout" | "order";
 export type Locale = "ru" | "en";
+
+/** План (продукт) vs месяц, на который закоммитилась разработка — для сценарного пересчёта. */
+export type TimelineMode = "plan" | "dev_committed";
 export type AdjustableStage =
   | FunnelStage
   | "traffic"
@@ -33,6 +36,11 @@ export type BaselineInput = {
   buyoutRate: number;
   atv: number;
   upt: number;
+  /**
+   * Доля годовых sessions по месяцам (янв = [0] … дек = [11]).
+   * После нормализации элементы суммируются в 1; по умолчанию равные 1/12.
+   */
+  seasonalityWeights: number[];
 };
 
 export type BaselineAbsolute = {
@@ -81,7 +89,10 @@ export type Task = {
   stage2?: AdjustableStage;
   impact2Type?: ImpactType;
   impact2Value: number;
+  /** Месяц старта эффекта в продуктовом плане (1–12). */
   releaseMonth: number;
+  /** Месяц готовности релиза по коммиту разработки (PM); в режиме «план» не используется в модели. */
+  devCommittedReleaseMonth: number;
   active: boolean;
   comment: string;
 };
@@ -177,6 +188,12 @@ export type TaskPMData = {
   blocker: string;
   needsAbTest: boolean;
   devCostHours: number;
+  /** Смежные системы (текст). */
+  adjacentSystems: string;
+  /** Комментарий по задаче в PM. */
+  pmComment: string;
+  /** URL эпика в Jira (вставка из браузера). */
+  jiraEpicUrl: string;
   phases: Record<PhaseName, PhaseStatus>;
 };
 
@@ -187,6 +204,8 @@ export type SharedRoadmapPayload = {
   /** Идеи и гипотезы до переноса в roadmap. */
   ideas: Task[];
   trafficChangePercent: number;
+  /** Какой горизонт сроков использовать в годовой модели. */
+  timelineMode?: TimelineMode;
   locale: Locale;
   pmData: Record<string, TaskPMData>;
   /**

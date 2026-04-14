@@ -5,11 +5,11 @@ import { useMemo } from "react";
 
 import "./ceo-report.css";
 
-import { TopTasksByRevenueTable } from "@/components/TopTasksByRevenueTable";
+import { CeoExecutiveRankingBlock } from "@/components/CeoExecutiveRankingBlock";
 import { buildAnnualFunnelComparisonRows, type FunnelComparisonRow } from "@/lib/funnel-comparison";
-import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
-import { getMonthLabel, getText, getStageLabels } from "@/lib/i18n";
-import { buildTopProjectRows } from "@/lib/top-projects";
+import { formatCurrency, formatNumber, formatPercent, formatPercentForLocale } from "@/lib/format";
+import { getText, getStageLabels } from "@/lib/i18n";
+import { buildTopProjectsRevenueBundle } from "@/lib/top-projects-revenue";
 import { buildTopTasksRevenueBundle } from "@/lib/top-tasks-revenue";
 import { getTaskValueMetrics, getTrafficMultiplier, simulateScenario } from "@/lib/calculations";
 import { taskCountsTowardPlan } from "@/lib/initiative";
@@ -31,23 +31,25 @@ const formatDeltaCell = (row: FunnelComparisonRow, delta: number) => {
 };
 
 export default function CeoReportPage() {
-  const { baseline, tasks, ideas, trafficChangePercent, locale } = useCalculatorStore();
+  const { baseline, tasks, ideas, trafficChangePercent, locale, timelineMode } = useCalculatorStore();
   const text = getText(locale);
   const stageLabels = getStageLabels(locale);
 
   const allForMetrics = useMemo(() => [...ideas, ...tasks], [ideas, tasks]);
 
   const baselineSimulation = useMemo(
-    () => simulateScenario(baseline, [], getTrafficMultiplier(trafficChangePercent)),
-    [baseline, trafficChangePercent],
+    () =>
+      simulateScenario(baseline, [], getTrafficMultiplier(trafficChangePercent), { timelineMode }),
+    [baseline, trafficChangePercent, timelineMode],
   );
   const projectedSimulation = useMemo(
-    () => simulateScenario(baseline, tasks, getTrafficMultiplier(trafficChangePercent)),
-    [baseline, trafficChangePercent, tasks],
+    () =>
+      simulateScenario(baseline, tasks, getTrafficMultiplier(trafficChangePercent), { timelineMode }),
+    [baseline, trafficChangePercent, tasks, timelineMode],
   );
   const taskMetrics = useMemo(
-    () => getTaskValueMetrics(baseline, allForMetrics, trafficChangePercent),
-    [allForMetrics, baseline, trafficChangePercent],
+    () => getTaskValueMetrics(baseline, allForMetrics, trafficChangePercent, { timelineMode }),
+    [allForMetrics, baseline, trafficChangePercent, timelineMode],
   );
 
   const funnelRows = useMemo(
@@ -62,26 +64,35 @@ export default function CeoReportPage() {
     [baselineSimulation.annual, locale, projectedSimulation.annual, stageLabels, text],
   );
 
-  const topProjects = useMemo(() => {
-    const noProject = locale === "ru" ? "Без проекта" : "No project";
-    return buildTopProjectRows(tasks, taskMetrics, noProject, taskCountsTowardPlan);
-  }, [locale, taskMetrics, tasks]);
-
   const topTasksRevenue = useMemo(
-    () => buildTopTasksRevenueBundle(tasks, taskMetrics, locale, taskCountsTowardPlan),
-    [locale, taskMetrics, tasks],
+    () =>
+      buildTopTasksRevenueBundle(tasks, taskMetrics, locale, taskCountsTowardPlan, timelineMode),
+    [locale, taskMetrics, tasks, timelineMode],
   );
 
-  const orderCrNote = useMemo(() => {
+  const topProjectsRevenue = useMemo(() => {
+    const noProject = locale === "ru" ? "Без проекта" : "No project";
+    return buildTopProjectsRevenueBundle(
+      tasks,
+      taskMetrics,
+      locale,
+      noProject,
+      taskCountsTowardPlan,
+      timelineMode,
+    );
+  }, [locale, taskMetrics, tasks, timelineMode]);
+
+  const crImpactFooterLine = useMemo(() => {
     const t = getText(locale);
     const base = baselineSimulation.annual.toSessionsRates.orderCr;
     const after = projectedSimulation.annual.toSessionsRates.orderCr;
     const deltaRel = base > 0 ? Math.round(((after - base) / base) * 100) : 0;
-    const dr = deltaRel >= 0 ? `+${deltaRel}` : String(deltaRel);
-    return t.ceoReportOrderCrNote
-      .replace("{base}", formatPercent(base, 2))
-      .replace("{after}", formatPercent(after, 2))
-      .replace("{deltaRel}", dr);
+    const deltaPct = deltaRel >= 0 ? `+${deltaRel}` : String(deltaRel);
+    const core = t.ceoExecutiveCrLine
+      .replace("{base}", formatPercentForLocale(base, 2, locale))
+      .replace("{after}", formatPercentForLocale(after, 2, locale))
+      .replace("{deltaPct}", deltaPct);
+    return `${core} ${t.topTasksRevenueFooterSep} ${t.ceoExecutiveMetricLegend}`;
   }, [
     locale,
     baselineSimulation.annual.toSessionsRates.orderCr,
@@ -195,51 +206,19 @@ export default function CeoReportPage() {
         </div>
       </section>
 
-      <section className="ceo-report__section ceo-report__section--top-tasks">
-        <h2>{text.ceoReportTopTasksSection}</h2>
-        <TopTasksByRevenueTable
+      <section className="ceo-report__section ceo-report__section--executive-appendix">
+        <CeoExecutiveRankingBlock
           locale={locale}
           data={topTasksRevenue}
-          variant="ceo"
-          omitHeading
+          mode="tasks"
+          crImpactFooterLine={crImpactFooterLine}
         />
-        <p className="ceo-report__cr-note">{orderCrNote}</p>
-      </section>
-
-      <section className="ceo-report__section">
-        <h2>{text.ceoReportTopProjects}</h2>
-        <div className="ceo-report__table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>{text.ceoReportColProject}</th>
-                <th className="num">{text.ceoReportColContribution}</th>
-                <th className="num">{text.ceoReportColTaskCount}</th>
-                <th className="num">{text.ceoReportColLatestRelease}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topProjects.length === 0 ? (
-                <tr>
-                  <td colSpan={5} style={{ padding: "16px", color: "var(--text-secondary)" }}>
-                    —
-                  </td>
-                </tr>
-              ) : (
-                topProjects.map((row, i) => (
-                  <tr key={row.project}>
-                    <td>{i + 1}</td>
-                    <td>{row.project}</td>
-                    <td className="num">{formatCurrency(row.netRevenueContribution)}</td>
-                    <td className="num">{row.taskCount}</td>
-                    <td className="num">{getMonthLabel(locale, row.latestReleaseMonth)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <CeoExecutiveRankingBlock
+          locale={locale}
+          data={topProjectsRevenue}
+          mode="projects"
+          crImpactFooterLine={crImpactFooterLine}
+        />
       </section>
     </div>
   );

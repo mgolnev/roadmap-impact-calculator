@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import type { PMSortColumn, PMSortDirection } from "@/lib/pm-display-order";
 import { PhaseName, PhaseStatus, TaskPMData } from "@/lib/types";
 
 export const emptyPhases = (): Record<PhaseName, PhaseStatus> => ({
@@ -22,11 +23,24 @@ export const emptyPMData = (): TaskPMData => ({
   blocker: "",
   needsAbTest: false,
   devCostHours: 0,
+  adjacentSystems: "",
+  pmComment: "",
+  jiraEpicUrl: "",
   phases: emptyPhases(),
 });
 
+export type PMColumnSortState = { column: PMSortColumn; direction: PMSortDirection } | null;
+
 type PMStoreState = {
   pmData: Record<string, TaskPMData>;
+  /** Сортировка по столбцу PM (не влияет на порядок задач на вкладке «Бизнес»). */
+  pmColumnSort: PMColumnSortState;
+  /** Ручной порядок строк PM; взаимоисключающе с pmColumnSort при установке из UI. */
+  pmManualOrderIds: string[] | null;
+  setPmColumnSort: (sort: PMColumnSortState) => void;
+  togglePmColumnSort: (column: PMSortColumn) => void;
+  setPmManualOrderIds: (ids: string[] | null) => void;
+  resetPmTableLayout: () => void;
   updatePMField: <K extends keyof Omit<TaskPMData, "phases">>(
     taskId: string,
     field: K,
@@ -55,6 +69,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "",
     needsAbTest: true,
     devCostHours: 1032,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: { prd: "done", design: "in_progress", analytics: "done", development: "not_started", qa: "not_started", ab_test: "not_started", rollout: "not_started", results: "not_started" },
   },
   "task-2": {
@@ -65,6 +82,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "OMS",
     needsAbTest: true,
     devCostHours: 488,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-3": {
@@ -75,6 +95,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "OMS",
     needsAbTest: true,
     devCostHours: 0,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-4": {
@@ -85,6 +108,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "",
     needsAbTest: true,
     devCostHours: 528,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-5": {
@@ -95,6 +121,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "BNPL operator agreement",
     needsAbTest: false,
     devCostHours: 1840,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-6": {
@@ -105,6 +134,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "OMS",
     needsAbTest: true,
     devCostHours: 2400,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-7": {
@@ -115,6 +147,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "",
     needsAbTest: true,
     devCostHours: 664,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-8": {
@@ -125,6 +160,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "",
     needsAbTest: true,
     devCostHours: 264,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-9": {
@@ -135,6 +173,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "",
     needsAbTest: true,
     devCostHours: 10,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-10": {
@@ -145,6 +186,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "",
     needsAbTest: true,
     devCostHours: 2080,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-11": {
@@ -155,6 +199,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "Contractor needed",
     needsAbTest: true,
     devCostHours: 176,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-12": {
@@ -165,6 +212,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "Contractor needed",
     needsAbTest: true,
     devCostHours: 304,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-13": {
@@ -175,6 +225,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "Contractor needed",
     needsAbTest: true,
     devCostHours: 1112,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-14": {
@@ -185,6 +238,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "Contractor needed",
     needsAbTest: true,
     devCostHours: 980,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-15": {
@@ -195,6 +251,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "Contractor needed",
     needsAbTest: false,
     devCostHours: 520,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-16": {
@@ -205,6 +264,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "Contractor needed",
     needsAbTest: false,
     devCostHours: 100,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-17": {
@@ -215,6 +277,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "Contractor + budget needed",
     needsAbTest: false,
     devCostHours: 50,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-18": {
@@ -225,6 +290,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "Contractor + budget needed",
     needsAbTest: true,
     devCostHours: 50,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
   "task-19": {
@@ -235,6 +303,9 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
     blocker: "Contractor needed",
     needsAbTest: false,
     devCostHours: 1000,
+    adjacentSystems: "",
+    pmComment: "",
+    jiraEpicUrl: "",
     phases: emptyPhases(),
   },
 };
@@ -243,6 +314,26 @@ export const usePMStore = create<PMStoreState>()(
   persist(
     (set, get) => ({
       pmData: DEFAULT_PM_DATA,
+      pmColumnSort: null,
+      pmManualOrderIds: null,
+      setPmColumnSort: (sort) => set({ pmColumnSort: sort }),
+      togglePmColumnSort: (column) =>
+        set((state) => {
+          const cur = state.pmColumnSort;
+          if (cur?.column === column) {
+            return {
+              pmColumnSort: cur.direction === "asc" ? { column, direction: "desc" } : null,
+              pmManualOrderIds: null,
+            };
+          }
+          return { pmColumnSort: { column, direction: "asc" }, pmManualOrderIds: null };
+        }),
+      setPmManualOrderIds: (ids) =>
+        set((state) => ({
+          pmManualOrderIds: ids,
+          pmColumnSort: ids != null ? null : state.pmColumnSort,
+        })),
+      resetPmTableLayout: () => set({ pmColumnSort: null, pmManualOrderIds: null }),
       updatePMField: (taskId, field, value) =>
         set((state) => {
           const current = state.pmData[taskId] ?? emptyPMData();
@@ -284,7 +375,45 @@ export const usePMStore = create<PMStoreState>()(
     }),
     {
       name: "roadmap-pm-store",
-      version: 1,
+      version: 4,
+      partialize: (state) => ({
+        pmData: state.pmData,
+        pmColumnSort: state.pmColumnSort,
+        pmManualOrderIds: state.pmManualOrderIds,
+      }),
+      migrate: (persisted, version) => {
+        const p = persisted as {
+          pmData?: Record<string, Partial<TaskPMData>>;
+          pmColumnSort?: PMColumnSortState;
+          pmManualOrderIds?: string[] | null;
+        };
+        let out: typeof p = { ...p };
+        if (version < 2) {
+          out = { ...out, pmColumnSort: null, pmManualOrderIds: null };
+        }
+        if (version < 3 && out.pmData) {
+          out = {
+            ...out,
+            pmData: Object.fromEntries(
+              Object.entries(out.pmData).map(([id, row]) => [
+                id,
+                {
+                  ...emptyPMData(),
+                  ...row,
+                  phases: { ...emptyPhases(), ...row.phases },
+                },
+              ]),
+            ),
+          };
+        }
+        if (version < 4 && out.pmColumnSort) {
+          const col = out.pmColumnSort.column as string;
+          if (col === "managerGJ" || col === "manager" || col === "blocker") {
+            out = { ...out, pmColumnSort: null };
+          }
+        }
+        return out;
+      },
     },
   ),
 );

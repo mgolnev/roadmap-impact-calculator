@@ -1,4 +1,5 @@
-import type { Task, TaskValueMetrics } from "@/lib/types";
+import type { Task, TaskValueMetrics, TimelineMode } from "@/lib/types";
+import { effectiveReleaseMonth } from "@/lib/timeline";
 
 export type TopProjectRow = {
   project: string;
@@ -16,6 +17,7 @@ export const buildTopProjectRows = (
   taskMetrics: Record<string, TaskValueMetrics>,
   noProjectLabel: string,
   includeTask: (task: Task) => boolean,
+  timelineMode: TimelineMode = "plan",
 ): TopProjectRow[] =>
   Array.from(
     tasks
@@ -32,7 +34,10 @@ export const buildTopProjectRows = (
           } satisfies TopProjectRow);
         cur.netRevenueContribution += taskMetrics[task.id]?.incrementalCurrent ?? 0;
         cur.taskCount += 1;
-        cur.latestReleaseMonth = Math.max(cur.latestReleaseMonth, task.releaseMonth);
+        cur.latestReleaseMonth = Math.max(
+          cur.latestReleaseMonth,
+          effectiveReleaseMonth(task, timelineMode),
+        );
         acc.set(key, cur);
         return acc;
       }, new Map<string, TopProjectRow>())

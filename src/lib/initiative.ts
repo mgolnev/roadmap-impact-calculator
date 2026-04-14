@@ -68,15 +68,20 @@ export const normalizeImpactCategory = (raw: string): InitiativeImpactCategory |
   return allowed.includes(t as InitiativeImpactCategory) ? (t as InitiativeImpactCategory) : undefined;
 };
 
-export const withInitiativeDefaults = (task: Task): Task => ({
-  ...task,
-  initiativeStatus: task.initiativeStatus ?? DEFAULT_INITIATIVE_STATUS,
-  description: task.description ?? "",
-  problemStatement: task.problemStatement ?? "",
-  confidence: task.confidence ?? "medium",
-  effort: task.effort ?? "m",
-  impactCategory: task.impactCategory ?? "conversion",
-});
+export const withInitiativeDefaults = (task: Task): Task => {
+  const releaseMonth = task.releaseMonth ?? 1;
+  return {
+    ...task,
+    releaseMonth,
+    devCommittedReleaseMonth: task.devCommittedReleaseMonth ?? releaseMonth,
+    initiativeStatus: task.initiativeStatus ?? DEFAULT_INITIATIVE_STATUS,
+    description: task.description ?? "",
+    problemStatement: task.problemStatement ?? "",
+    confidence: task.confidence ?? "medium",
+    effort: task.effort ?? "m",
+    impactCategory: task.impactCategory ?? "conversion",
+  };
+};
 
 /** Склейка полей проблемы и описания (как в форме идей). */
 export function mergeIdeaProblemAndDescription(

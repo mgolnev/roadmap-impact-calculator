@@ -155,21 +155,176 @@
   font-weight: 600;
 }
 
-.ceo-report .top-revenue-table {
+/* Executive appendix: Top tasks / Top projects (PDF-style) */
+.ceo-report__section--executive-appendix {
+  margin-top: 48px;
+  padding-top: 28px;
+  border-top: 2px solid var(--border);
+  page-break-inside: auto;
+}
+
+.ceo-impact-table + .ceo-impact-table {
+  margin-top: 40px;
+}
+
+.ceo-impact-table {
+  page-break-inside: avoid;
+}
+
+.ceo-impact-table__title {
+  margin: 0 0 8px;
+  font-family: Georgia, "Times New Roman", Times, serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0d2747;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.ceo-impact-table__subtitle {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: #5c6570;
+  line-height: 1.45;
+  max-width: 720px;
+}
+
+.ceo-impact-table__empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.ceo-impact-table__wrap {
+  border: 1px solid #c5cad3;
+  overflow: auto;
+}
+
+.ceo-impact-table__grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ceo-impact-table__grid thead th {
+  background: #1e3a5f;
+  color: #fff;
+  font-weight: 700;
+  padding: 10px 14px;
+  text-align: left;
+  border: 1px solid #1a3352;
+}
+
+.ceo-impact-table__grid thead th.num {
+  text-align: right;
+}
+
+.ceo-impact-table__th-cr {
+  min-width: 140px;
+  text-align: center;
+}
+
+.ceo-impact-table__td-cr.ceo-impact-table__cr-delta {
+  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #1565c0 !important;
+}
+
+.ceo-impact-table__td-cr.ceo-impact-table__cr-delta--verbose {
+  text-align: left;
+  color: #2d5a27 !important;
+}
+
+.ceo-impact-table__grid tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e5ea;
+  vertical-align: top;
+}
+
+.ceo-impact-table__row--top3 td {
+  background: #fff9c4 !important;
+}
+
+.ceo-impact-table__grid tbody tr:not(.ceo-impact-table__row--top3):nth-child(even) td {
+  background: #f5f5f5;
+}
+
+.ceo-impact-table__td-rank {
+  font-weight: 700;
+  color: #424852;
+  width: 40px;
+}
+
+.ceo-impact-table__td-rank--top3 {
+  color: #e65100 !important;
+}
+
+.ceo-impact-table__metric-pos {
+  color: #2e7d32 !important;
+  font-weight: 700;
+}
+
+.ceo-impact-table__metric-neg {
+  color: #c62828 !important;
+  font-weight: 700;
+}
+
+.ceo-impact-table__td-timing {
+  color: #37474f;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ceo-impact-table__task-name {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.ceo-impact-table__task-project {
+  font-size: 12px;
+  color: #5c6570;
+  margin-top: 4px;
+}
+
+.ceo-impact-table__cr-line + .ceo-impact-table__cr-line {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #e8eaed;
+}
+
+.ceo-impact-table__footer {
   margin-top: 0;
-  padding-top: 0;
+  padding: 14px 16px;
+  background: #e8f5e9;
+  border: 1px solid #c8e6c9;
   border-top: none;
 }
 
-.ceo-report .top-revenue-table .top-tasks-header {
-  margin-top: 0;
+.ceo-impact-table__footer-summary {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1b5e20;
+  line-height: 1.55;
 }
 
-.ceo-report__cr-note {
-  margin: 12px 0 0;
+.ceo-impact-table__footer-detail {
+  margin: 0;
   font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.45;
+  color: #424852;
+  line-height: 1.5;
+}
+
+.ceo-impact-table__footer-legend {
+  color: #546e7a;
+}
+
+.ceo-impact-table__footer-sep {
+  margin: 0 8px;
+  color: #78909c;
+  font-weight: 400;
 }
 
 @media print {
@@ -200,11 +355,59 @@
     page-break-inside: avoid;
   }
 
+  .ceo-report__section--executive-appendix {
+    page-break-inside: auto !important;
+  }
+
   .ceo-report__table-wrap {
     border: 1px solid #ccc;
   }
 
   .ceo-report thead th {
     background: #f0f2f7 !important;
+  }
+
+  .ceo-impact-table__grid thead th {
+    background: #1e3a5f !important;
+    color: #fff !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .ceo-impact-table__row--top3 td {
+    background: #fff9c4 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .ceo-impact-table__grid tbody tr:not(.ceo-impact-table__row--top3):nth-child(even) td {
+    background: #f5f5f5 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .ceo-impact-table__footer {
+    background: #e8f5e9 !important;
+    border-color: #c8e6c9 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .ceo-impact-table__metric-pos {
+    color: #2e7d32 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .ceo-impact-table__td-cr.ceo-impact-table__cr-delta {
+    color: #1565c0 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .ceo-impact-table__td-cr.ceo-impact-table__cr-delta--verbose {
+    color: #2d5a27 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 }

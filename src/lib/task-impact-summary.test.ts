@@ -4,28 +4,35 @@ import { formatCurrencyMillionsRub } from "@/lib/format";
 import { formatTaskImpactSummary } from "@/lib/task-impact-summary";
 import type { Task } from "@/lib/types";
 
-const baseTask = (over: Partial<Task>): Task => ({
-  id: "t1",
-  project: "P",
-  taskName: "Test",
-  priority: "p2",
-  initiativeStatus: "planned",
-  description: "",
-  problemStatement: "",
-  impactCategory: "conversion",
-  confidence: "medium",
-  effort: "m",
-  stage1: "checkout",
-  impact1Type: "relative_percent",
-  impact1Value: 0.1,
-  stage2: undefined,
-  impact2Type: undefined,
-  impact2Value: 0,
-  releaseMonth: 4,
-  active: true,
-  comment: "",
-  ...over,
-});
+const baseTask = (over: Partial<Task>): Task => {
+  const t = {
+    id: "t1",
+    project: "P",
+    taskName: "Test",
+    priority: "p2" as const,
+    initiativeStatus: "planned" as const,
+    description: "",
+    problemStatement: "",
+    impactCategory: "conversion" as const,
+    confidence: "medium" as const,
+    effort: "m" as const,
+    stage1: "checkout" as const,
+    impact1Type: "relative_percent" as const,
+    impact1Value: 0.1,
+    stage2: undefined,
+    impact2Type: undefined,
+    impact2Value: 0,
+    releaseMonth: 4,
+    devCommittedReleaseMonth: 4,
+    active: true,
+    comment: "",
+    ...over,
+  };
+  return {
+    ...t,
+    devCommittedReleaseMonth: t.devCommittedReleaseMonth ?? t.releaseMonth,
+  };
+};
 
 describe("formatCurrencyMillionsRub", () => {
   it("uses millions suffix above 1M", () => {

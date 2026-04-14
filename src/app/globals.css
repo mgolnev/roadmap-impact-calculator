@@ -33,6 +33,8 @@
   --font-lg: 20px;
   --font-xl: 24px;
   --font-2xl: 32px;
+  /** Отступ липкой шапки таблиц (PM, задачи) под `.action-bar-sticky` */
+  --pm-thead-sticky-top: 88px;
 }
 
 * {
@@ -96,6 +98,92 @@ button {
 .hero {
   display: grid;
   gap: 20px;
+}
+
+.timeline-mode-card {
+  padding: 18px 22px;
+}
+
+.seasonality-card .seasonality-hint {
+  margin-top: 8px;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  max-width: 920px;
+  line-height: 1.45;
+}
+
+/* Одна строка: 12 колонок; на узком экране — горизонтальный скролл */
+.seasonality-grid-scroll {
+  width: 100%;
+  margin-top: 18px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.seasonality-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(48px, 1fr));
+  gap: 8px 6px;
+  width: 100%;
+}
+
+.seasonality-cell {
+  display: grid;
+  gap: 6px;
+  font-size: var(--font-sm);
+}
+
+.seasonality-month {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.seasonality-input-row .seasonality-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.seasonality-sum {
+  margin-top: 14px;
+  font-size: var(--font-sm);
+  color: var(--muted);
+}
+
+.timeline-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px 20px;
+}
+
+.timeline-mode-title {
+  font-weight: 700;
+  font-size: var(--font-md);
+}
+
+/* Заголовок сценария сроков: как раньше, без размера h2 страницы */
+.timeline-mode-card > summary .collapsible-section-summary-inner h2 {
+  font-size: var(--font-md);
+  letter-spacing: 0;
+  margin-bottom: 0;
+}
+
+.timeline-mode-hint {
+  margin: 6px 0 0;
+  max-width: 520px;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.timeline-mode-tabs.tab-bar {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.timeline-mode-banner {
+  margin: 14px 0 0;
 }
 
 /* ---------- Typography ---------- */
@@ -819,6 +907,61 @@ a.primary-button:visited {
   background: #f0f3ff;
 }
 
+/* ---------- Roadmap tasks table (Business tab): горизонтальный скролл, без sticky колонок/шапки ---------- */
+
+.roadmap-tasks-table-wrap {
+  margin-top: 14px;
+  border-radius: var(--radius);
+}
+
+.roadmap-tasks-table-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.roadmap-tasks-table.matrix-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-left: 1px solid var(--border-light);
+  border-top: 1px solid var(--border-light);
+}
+
+.roadmap-tasks-table.matrix-table th,
+.roadmap-tasks-table.matrix-table td {
+  border: none;
+  border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* Сброс липкости: классы sticky-col остаются для фона строк, но позиция обычная */
+.roadmap-tasks-table th.sticky-col,
+.roadmap-tasks-table td.sticky-col {
+  position: static;
+  left: auto;
+  z-index: auto;
+  box-shadow: none;
+  border-right: 1px solid var(--border-light) !important;
+  border-bottom: 1px solid var(--border-light) !important;
+}
+
+/* Не наследовать липкую шапку от .matrix-table thead th */
+.roadmap-tasks-table.matrix-table thead th {
+  position: static;
+  top: auto;
+  z-index: auto;
+  background: var(--surface-muted);
+  border-bottom: 2px solid var(--border);
+  box-shadow: none;
+}
+
+.roadmap-tasks-table thead th.sticky-col {
+  border-bottom: 2px solid var(--border) !important;
+}
+
+.roadmap-tasks-table.matrix-table tfoot td {
+  border-top: 2px solid var(--border);
+}
+
 /* ---------- Sticky columns ---------- */
 
 .sticky-col {
@@ -990,6 +1133,18 @@ a.primary-button:visited {
   height: 30px !important;
   padding: 0 10px !important;
   min-width: 120px;
+}
+
+/* Статус инициативы: без min-width селект сжимается до «квадрата», текст не виден */
+.tasks-table th.tasks-col-initiative-status,
+.tasks-table td.tasks-col-initiative-status {
+  min-width: 11rem;
+}
+
+.roadmap-status-select {
+  min-width: 10rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* ---------- Pre-backlog (ideas tab) ---------- */
@@ -1663,30 +1818,96 @@ a.primary-button:visited {
 
 /* ---------- Details / collapsible ---------- */
 
-.details-card summary {
+.details-card > summary {
   cursor: pointer;
-  font-weight: 700;
   list-style: none;
-  font-size: var(--font-md);
+  display: block;
+  font-weight: 400;
+  font-size: inherit;
 }
 
-.details-card summary::-webkit-details-marker {
+.details-card > summary::-webkit-details-marker {
   display: none;
 }
 
-.details-card summary::after {
-  content: "\25BE";
-  margin-left: 8px;
-  color: var(--muted);
-  font-weight: 400;
+.details-card > summary > .collapsible-section-summary-inner {
+  width: 100%;
 }
 
-.details-card[open] summary::after {
+/* Левая колонка шапки: заголовок+иконка компактно, описание ниже на всю ширину */
+.collapsible-section-aside {
+  flex-shrink: 0;
+}
+
+.collapsible-section-leading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.collapsible-section-title-inline {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.collapsible-section-title-inline h2 {
+  margin-bottom: 0;
+}
+
+.collapsible-section-disclosure-icon {
+  flex-shrink: 0;
+  width: 28px;
+  text-align: center;
+  color: var(--accent);
+  font-size: 16px;
+  line-height: 1;
+  padding-top: 5px;
+}
+
+.collapsible-section-disclosure-icon::before {
+  content: "\25BE";
+  display: block;
+}
+
+.details-card[open] .collapsible-section-disclosure-icon::before {
   content: "\25B4";
 }
 
-.details-card[open] .section-header {
-  margin-top: 18px;
+.timeline-mode-card .collapsible-section-disclosure-icon {
+  padding-top: 3px;
+  font-size: 15px;
+}
+
+.collapsible-section-description p,
+.collapsible-section-description .timeline-mode-hint,
+.collapsible-section-description .pre-backlog-note {
+  margin: 0;
+}
+
+.collapsible-section-description p + p,
+.collapsible-section-description p + .pre-backlog-note {
+  margin-top: 8px;
+}
+
+.collapsible-section-description .timeline-mode-hint {
+  margin-top: 6px;
+}
+
+.collapsible-section-body {
+  margin-top: 14px;
+}
+
+.details-card .section-header p,
+.collapsible-section-description p {
+  color: var(--text-secondary);
+  max-width: 860px;
+  line-height: 1.55;
+  font-size: var(--font-base);
 }
 
 /* ---------- Top tasks / projects ---------- */
@@ -1722,37 +1943,40 @@ a.primary-button:visited {
   margin-bottom: 12px;
 }
 
-.top-tasks-list {
-  display: grid;
-  gap: 8px;
-}
-
-.top-task-item {
+.top-leaderboard__title-row {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.top-leaderboard__title-row .top-tasks-title {
+  margin-bottom: 0;
+}
+
+.top-leaderboard__tabs-cluster {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius);
-  background: var(--surface-muted);
-  font-size: var(--font-base);
+  gap: 10px;
 }
 
-.top-task-item strong {
-  font-weight: 700;
-  white-space: nowrap;
+.top-leaderboard__tabs.tab-bar {
+  margin-bottom: 0;
 }
 
-.top-task-release {
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  background: white;
-  border: 1px solid var(--border-light);
+.top-leaderboard-project-row {
+  cursor: pointer;
+}
+
+.top-leaderboard-project-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.top-leaderboard-project-row--active td {
+  box-shadow: inset 3px 0 0 0 var(--accent);
 }
 
 .top-task-rank {
@@ -2058,12 +2282,108 @@ a.primary-button:visited {
 
 /* ---------- PM tracker ---------- */
 
+/**
+ * Внешняя обёртка без overflow — вертикальная прокрутка у страницы.
+ * Внутренний блок — только горизонтальный скролл широкой таблицы.
+ */
+.pm-table-wrap {
+  margin-top: 14px;
+  border-radius: var(--radius);
+}
+
+.pm-table-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/**
+ * border-collapse: collapse + sticky thead/col давали смещение в Chrome/Safari;
+ * отдельные границы + border-spacing: 0. Липкость отключена — только горизонтальный скролл.
+ */
+.pm-table.matrix-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-left: 1px solid var(--border-light);
+  border-top: 1px solid var(--border-light);
+}
+
+.pm-table.matrix-table th,
+.pm-table.matrix-table td {
+  border: none;
+  border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* Без липкой шапки: иначе наследуется .matrix-table thead th */
+.pm-table.matrix-table thead th {
+  position: static;
+  top: auto;
+  z-index: auto;
+  background: var(--surface-muted);
+  border-bottom: 2px solid var(--border);
+  box-shadow: none;
+}
+
+/* Сброс липких колонок (классы остаются для фона строк) */
+.pm-table th.sticky-col,
+.pm-table td.sticky-col {
+  position: static;
+  left: auto;
+  z-index: auto;
+  box-shadow: none;
+  border-right: 1px solid var(--border-light) !important;
+  border-bottom: 1px solid var(--border-light) !important;
+}
+
+.pm-table thead th.sticky-col {
+  border-bottom: 2px solid var(--border) !important;
+}
+
 .pm-table {
-  min-width: 2000px;
+  min-width: 2360px;
+}
+
+.pm-table .sticky-col-0.pm-drag-col {
+  left: 0;
 }
 
 .pm-table .sticky-col-1 {
+  left: 36px;
   min-width: 140px;
+}
+
+.pm-table .sticky-col-pm-2 {
+  left: 176px;
+  min-width: 260px;
+  box-shadow: 4px 0 12px rgba(23, 32, 51, 0.04);
+}
+
+.pm-sort-th {
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: inherit;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.pm-sort-th:hover {
+  color: var(--accent);
+}
+
+.pm-sort-th--center {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+.pm-table thead .pm-phase-header {
+  vertical-align: bottom;
 }
 
 .sticky-col-pm-2 {
@@ -2077,7 +2397,8 @@ a.primary-button:visited {
   min-width: 56px;
 }
 
-.pm-status-col {
+.pm-table thead th:nth-child(4),
+.pm-table tbody td:nth-child(4) {
   min-width: 110px;
 }
 
@@ -2097,6 +2418,41 @@ a.primary-button:visited {
 
 .pm-cost-input {
   min-width: 90px;
+}
+
+.pm-wide-text-input {
+  min-width: 140px;
+  width: 100%;
+}
+
+.pm-comment-textarea {
+  min-width: 160px;
+  width: 100%;
+  resize: vertical;
+  min-height: 2.5rem;
+  line-height: 1.35;
+}
+
+.pm-jira-cell {
+  min-width: 200px;
+  vertical-align: top;
+}
+
+.pm-jira-input {
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.pm-jira-link {
+  display: inline-block;
+  font-size: var(--font-sm);
+  color: var(--accent);
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.pm-jira-link:hover {
+  color: var(--accent-hover, var(--accent));
 }
 
 .pm-project-label {

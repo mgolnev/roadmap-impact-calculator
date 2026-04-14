@@ -19,7 +19,7 @@ import {
   INITIATIVE_STATUS_LABELS,
 } from "@/lib/i18n";
 import { buildTopProjectRows } from "@/lib/top-projects";
-import { BaselineInput, ImpactType, Locale, Task, TaskValueMetrics } from "@/lib/types";
+import { BaselineInput, ImpactType, Locale, Task, TaskValueMetrics, TimelineMode } from "@/lib/types";
 
 const shortImpactTypeLabel = (locale: Locale, type: ImpactType | undefined): string => {
   if (!type) return "";
@@ -38,6 +38,7 @@ type ExportWorkbookParams = {
   ideas?: Task[];
   trafficChangePercent: number;
   taskMetrics: Record<string, TaskValueMetrics>;
+  timelineMode?: TimelineMode;
 };
 
 const conversionRows = (
@@ -103,19 +104,26 @@ export const buildRoadmapImpactWorkbook = ({
   ideas = [],
   trafficChangePercent,
   taskMetrics,
+  timelineMode = "plan",
 }: ExportWorkbookParams) => {
   const workbook = XLSX.utils.book_new();
   const text = getText(locale);
   const stageLabels = getStageLabels(locale);
   const priorityLabels = getPriorityLabels(locale);
   const trafficMultiplier = getTrafficMultiplier(trafficChangePercent);
-  const baselineSimulation = simulateScenario(baseline, [], trafficMultiplier);
-  const projectedSimulation = simulateScenario(baseline, tasks, trafficMultiplier);
+  const baselineSimulation = simulateScenario(baseline, [], trafficMultiplier, { timelineMode });
+  const projectedSimulation = simulateScenario(baseline, tasks, trafficMultiplier, { timelineMode });
   const fullyImplemented = getFullyImplementedRates(baseline, tasks);
   const derivedBaseline = deriveBaseline(baseline);
   const baseRates = getBaseRates(baseline);
   const noProjectLabel = locale === "ru" ? "Без проекта" : "No project";
-  const topProjects = buildTopProjectRows(tasks, taskMetrics, noProjectLabel, (t) => t.active);
+  const topProjects = buildTopProjectRows(
+    tasks,
+    taskMetrics,
+    noProjectLabel,
+    (t) => t.active,
+    timelineMode,
+  );
 
   const summarySheet = XLSX.utils.json_to_sheet([
     {
@@ -220,21 +228,16 @@ export const buildRoadmapImpactWorkbook = ({
   const impactSectionTitle =
     locale === "ru" ? "Среднегодовая воронка (база → после roadmap)" : "Annual funnel (baseline → after roadmap)";
   const conversionSectionTitle =
-    locale === "ru" ? "Конверсии по шагам (база, полное внедрение, средняя за год)" : "Step conversions (base, full rollout, annual avg.)";
+    locale === "ru"
+      ? "Показатели по строкам (база, полное внедрение, среднее за год в плане)"
+      : "Metrics by row (baseline, full rollout, annual plan average)";
   const impactAoa: (string | number)[][] = [
     [impactSectionTitle],
     [text.metric, text.base, text.afterTasks, text.delta],
     ...annualFunnelRows.map((r) => [r.metric, r.baseline, r.afterTasks, r.delta]),
     [],
     [conversionSectionTitle],
-    [
-      locale === "ru" ? "Этап" : "Step",
-      locale === "ru" ? "База" : "Base",
-      locale === "ru" ? "После внедрения" : "Fully implemented",
-      locale === "ru" ? "Средняя за год" : "Annual average",
-      locale === "ru" ? "Δ шага" : "Δ step",
-      locale === "ru" ? "Δ к году" : "Δ annual",
-    ],
+    [text.stage, text.base, text.fullyImplemented, text.annualAverage, text.stepChange, text.annualChange],
     ...conversionData.map((r) => [
       r.stage,
       r.base,
@@ -296,7 +299,8 @@ export const buildRoadmapImpactWorkbook = ({
           stage2: "Этап 2",
           impact2Type: "Тип 2",
           impact2Value: "Значение 2",
-          releaseMonth: "Старт эффекта",
+          releaseMonth: "Старт эффекта (план)",
+          devCommittedReleaseMonth: "Релиз по коммиту (мес.)",
           monthsActive: "Мес. активности",
           standaloneBase: "Standalone, ₽",
           valuePerMonth: "₽ / мес.",
@@ -318,7 +322,8 @@ export const buildRoadmapImpactWorkbook = ({
           stage2: "Stage 2",
           impact2Type: "Type 2",
           impact2Value: "Value 2",
-          releaseMonth: "Effect start",
+          releaseMonth: "Effect start (plan)",
+          devCommittedReleaseMonth: "Dev-committed release (mo.)",
           monthsActive: "Active months",
           standaloneBase: "Standalone",
           valuePerMonth: "Per month",
@@ -342,6 +347,7 @@ export const buildRoadmapImpactWorkbook = ({
     [taskCol.impact2Type]: shortImpactTypeLabel(locale, task.impact2Type),
     [taskCol.impact2Value]: task.impact2Value,
     [taskCol.releaseMonth]: getMonthLabel(locale, task.releaseMonth),
+    [taskCol.devCommittedReleaseMonth]: getMonthLabel(locale, task.devCommittedReleaseMonth),
     [taskCol.monthsActive]: taskMetrics[task.id]?.monthsActive ?? 0,
     [taskCol.standaloneBase]: taskMetrics[task.id]?.standaloneBase ?? 0,
     [taskCol.valuePerMonth]: taskMetrics[task.id]?.valuePerMonth ?? 0,

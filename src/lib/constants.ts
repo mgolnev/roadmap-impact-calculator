@@ -1,3 +1,4 @@
+import { uniformSeasonalityWeights } from "@/lib/seasonality";
 import { BaselineInput, Task } from "@/lib/types";
 
 const INITIATIVE_DEFAULTS: Pick<
@@ -22,20 +23,26 @@ export const DEFAULT_BASELINE: BaselineInput = {
   buyoutRate: 0.62,
   atv: 2312.912,
   upt: 2.536,
+  seasonalityWeights: uniformSeasonalityWeights(),
 };
 
 type TaskSeed = Partial<Omit<Task, "id">> &
   Pick<Task, "project" | "taskName" | "priority" | "releaseMonth" | "active" | "comment">;
 
-const createTask = (task: TaskSeed, id: number): Task => ({
-  id: `task-${id}`,
-  ...INITIATIVE_DEFAULTS,
-  stage1: "order",
-  impact1Type: "relative_percent",
-  impact1Value: 0,
-  impact2Value: 0,
-  ...task,
-});
+const createTask = (task: TaskSeed, id: number): Task => {
+  const merged: Task = {
+    id: `task-${id}`,
+    ...INITIATIVE_DEFAULTS,
+    stage1: "order",
+    impact1Type: "relative_percent",
+    impact1Value: 0,
+    impact2Value: 0,
+    ...task,
+    releaseMonth: task.releaseMonth,
+    devCommittedReleaseMonth: task.devCommittedReleaseMonth ?? task.releaseMonth,
+  };
+  return merged;
+};
 
 export const DEFAULT_TASKS: Task[] = [
   createTask(

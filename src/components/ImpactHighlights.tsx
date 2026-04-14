@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
+import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { TopTasksByRevenueTable } from "@/components/TopTasksByRevenueTable";
 import { getMonthLabel, getStageLabels, getText } from "@/lib/i18n";
 import { buildTopTasksRevenueBundle } from "@/lib/top-tasks-revenue";
@@ -12,8 +13,9 @@ import {
   Locale,
   Task,
   TaskValueMetrics,
+  TimelineMode,
 } from "@/lib/types";
-import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
+import { formatCurrency, formatCurrencyMillionsRub, formatNumber, formatPercent } from "@/lib/format";
 
 type ImpactHighlightsProps = {
   locale: Locale;
@@ -41,6 +43,7 @@ type ImpactHighlightsProps = {
     taskCount: number;
     latestReleaseMonth: number;
   }>;
+  timelineMode: TimelineMode;
 };
 
 const deltaClass = (current: number, base: number) => {
@@ -69,10 +72,17 @@ const deltaByFormatter = (
 export function ImpactHighlights(props: ImpactHighlightsProps) {
   const text = getText(props.locale);
   const stageLabels = getStageLabels(props.locale);
+  const [leaderTab, setLeaderTab] = useState<"projects" | "tasks">("projects");
   const topTasksRevenue = useMemo(
     () =>
-      buildTopTasksRevenueBundle(props.tasks, props.taskMetrics, props.locale, (t) => t.active),
-    [props.locale, props.taskMetrics, props.tasks],
+      buildTopTasksRevenueBundle(
+        props.tasks,
+        props.taskMetrics,
+        props.locale,
+        (t) => t.active,
+        props.timelineMode,
+      ),
+    [props.locale, props.taskMetrics, props.tasks, props.timelineMode],
   );
   const overviewRows = [
     {
@@ -132,6 +142,8 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
   ];
   const getTaskCount = (stage: AdjustableStage) =>
     props.tasks.filter((task) => task.stage1 === stage || task.stage2 === stage).length;
+
+  const projectTaskCount = props.topTasks.reduce((acc, row) => acc + row.taskCount, 0);
 
   const conversionRows = [
     {
@@ -209,16 +221,7 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
   ];
 
   return (
-    <section className="section-card">
-      <div className="section-header">
-        <div>
-          <h2>{text.impactTitle}</h2>
-          <p>
-            {text.impactDescription}
-          </p>
-        </div>
-      </div>
-
+    <CollapsibleSection title={text.impactTitle} description={<p>{text.impactDescription}</p>}>
       <div className="impact-summary-grid">
         <section className="impact-summary-section">
           <div className="impact-summary-title">{text.scenarioConditions}</div>
@@ -319,55 +322,141 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
         </div>
       </div>
 
-      <div className="top-tasks">
-        <div className="top-tasks-header">
-          <div className="top-tasks-title">
-            {text.topTasksTitle} ({props.topTasks.reduce((acc, task) => acc + task.taskCount, 0)} {text.tasksShort})
-          </div>
-          {props.selectedProjectFilter ? (
-            <button
-              className="ghost-button"
-              type="button"
-              onClick={() => props.onSelectProjectFilter("")}
-            >
-              {text.clearFilters}
-            </button>
-          ) : null}
-        </div>
-        <div className="top-tasks-subtitle">{text.topTasksHint}</div>
-        <div className="top-tasks-list">
-          {props.topTasks.length > 0 ? (
-            props.topTasks.map((task, index) => (
-              <div className="top-task-item" key={task.projectName}>
-                <div className="metric-filter-cell">
-                  <span>
-                    <span className="top-task-rank">{index + 1}</span>
-                    {task.projectName}
-                  </span>
-                  <button
-                    className={`metric-filter-button ${props.selectedProjectFilter === task.projectName ? "active" : ""}`}
-                    type="button"
-                    onClick={() => props.onSelectProjectFilter(task.projectName)}
-                  >
-                    ({task.taskCount} {text.tasksShort})
-                  </button>
-                  <span className="top-task-release" title={text.topProjectLatestReleaseTitle}>
-                    {getMonthLabel(props.locale, task.latestReleaseMonth)}
-                  </span>
-                </div>
-                <strong className={task.value >= 0 ? "delta-positive" : "delta-negative"}>{formatCurrency(task.value)}</strong>
-              </div>
-            ))
-          ) : (
-            <div className="top-task-item">
-              <span>{text.noActiveTasks}</span>
-              <strong>{formatCurrency(0)}</strong>
+      <div className="top-tasks top-leaderboard">
+        <div className="top-leaderboard__header">
+          <div className="top-leaderboard__title-row">
+            <div className="top-tasks-title">
+              {leaderTab === "projects"
+                ? `${text.topTasksTitle} (${projectTaskCount} ${text.tasksShort})`
+                : text.topTasksRevenueTitle}
             </div>
-          )}
+            <div className="top-leaderboard__tabs-cluster">
+              <div
+                className="tab-bar top-leaderboard__tabs"
+                role="tablist"
+                aria-label={text.topLeaderboardTabsAria}
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={leaderTab === "projects"}
+                  className={`tab-button ${leaderTab === "projects" ? "tab-active" : ""}`}
+                  onClick={() => setLeaderTab("projects")}
+                >
+                  {text.topLeaderboardTabProjects}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={leaderTab === "tasks"}
+                  className={`tab-button ${leaderTab === "tasks" ? "tab-active" : ""}`}
+                  onClick={() => setLeaderTab("tasks")}
+                >
+                  {text.topLeaderboardTabTasks}
+                </button>
+              </div>
+              {leaderTab === "projects" && props.selectedProjectFilter ? (
+                <button
+                  className="ghost-button"
+                  type="button"
+                  onClick={() => props.onSelectProjectFilter("")}
+                >
+                  {text.clearFilters}
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <div className="top-tasks-subtitle">
+            {leaderTab === "projects" ? text.topTasksHint : text.topTasksRevenueSubtitle}
+          </div>
         </div>
+        {leaderTab === "projects" ? (
+          <div className="top-revenue-table">
+            <div className="table-wrap top-revenue-table__wrap">
+              <table className="matrix-table top-revenue-table__grid top-leaderboard__project-table">
+              <thead>
+                <tr>
+                  <th className="top-revenue-table__th-num">#</th>
+                  <th>{text.project}</th>
+                  <th className="top-revenue-table__th-num num">{text.topTasksRevenueColImpact}</th>
+                  <th>{text.topTasksRevenueColMetric}</th>
+                  <th className="top-revenue-table__th-timing">{text.topTasksRevenueColTiming}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {props.topTasks.length > 0 ? (
+                  props.topTasks.map((task, index) => {
+                    const isActive = props.selectedProjectFilter === task.projectName;
+                    return (
+                      <tr
+                        key={task.projectName}
+                        tabIndex={0}
+                        className={[
+                          "top-leaderboard-project-row",
+                          index < 3 ? "top-revenue-table__row--top3" : "",
+                          isActive ? "top-leaderboard-project-row--active" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                        onClick={() => props.onSelectProjectFilter(task.projectName)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            props.onSelectProjectFilter(task.projectName);
+                          }
+                        }}
+                      >
+                        <td className="top-revenue-table__td-num">{index + 1}</td>
+                        <td>
+                          <div className="top-revenue-table__task-name">{task.projectName}</div>
+                        </td>
+                        <td
+                          className={`num top-revenue-table__td-impact ${task.value >= 0 ? "delta-positive" : "delta-negative"}`}
+                        >
+                          {formatCurrencyMillionsRub(task.value)}
+                        </td>
+                        <td className="top-revenue-table__td-metric">
+                          <button
+                            type="button"
+                            className={`metric-filter-button ${isActive ? "active" : ""}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              props.onSelectProjectFilter(task.projectName);
+                            }}
+                          >
+                            ({task.taskCount} {text.tasksShort})
+                          </button>
+                        </td>
+                        <td
+                          className="top-revenue-table__td-timing"
+                          title={text.topProjectLatestReleaseTitle}
+                        >
+                          {getMonthLabel(props.locale, task.latestReleaseMonth)}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="toolbar-status">
+                      {text.noActiveTasks}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <TopTasksByRevenueTable
+            locale={props.locale}
+            data={topTasksRevenue}
+            variant="dashboard"
+            omitHeading
+            embedded
+          />
+        )}
       </div>
-
-      <TopTasksByRevenueTable locale={props.locale} data={topTasksRevenue} variant="dashboard" />
 
       <div className="top-tasks">
         <div className="top-tasks-header">
@@ -428,6 +517,6 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
           </table>
         </div>
       </div>
-    </section>
+    </CollapsibleSection>
   );
 }

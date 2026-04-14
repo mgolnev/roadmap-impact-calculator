@@ -1,8 +1,20 @@
+import type { Locale } from "@/lib/types";
+
 export const formatNumber = (value: number, digits = 0) =>
   new Intl.NumberFormat("ru-RU", {
     maximumFractionDigits: digits,
     minimumFractionDigits: digits,
   }).format(Number.isFinite(value) ? value : 0);
+
+/** Доля 0–1 → проценты с учётом локали (EN — точка, RU — запятая). */
+export const formatPercentForLocale = (value: number, digits: number, locale: Locale) => {
+  const loc = locale === "en" ? "en-GB" : "ru-RU";
+  const n = new Intl.NumberFormat(loc, {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
+  }).format(Number.isFinite(value) ? value * 100 : 0);
+  return `${n}%`;
+};
 
 export const formatPercent = (value: number, digits = 1) =>
   `${formatNumber(value * 100, digits)}%`;

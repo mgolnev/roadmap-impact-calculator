@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { deriveBaseline, getBaseRates } from "@/lib/calculations";
 import { getStageLabels, getText } from "@/lib/i18n";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
@@ -10,10 +11,16 @@ import { BaselineInput, Locale } from "@/lib/types";
 type BaselineTableProps = {
   baseline: BaselineInput;
   locale: Locale;
-  onChange: <K extends keyof BaselineInput>(key: K, value: number) => void;
+  onChange: <K extends Exclude<keyof BaselineInput, "seasonalityWeights">>(
+    key: K,
+    value: BaselineInput[K],
+  ) => void;
 };
 
-const CR_FIELDS: Array<{ key: keyof BaselineInput; stage: "catalog" | "pdp" | "atc" | "checkout" | "order" }> = [
+const CR_FIELDS: Array<{
+  key: Exclude<keyof BaselineInput, "seasonalityWeights">;
+  stage: "catalog" | "pdp" | "atc" | "checkout" | "order";
+}> = [
   { key: "catalogCr", stage: "catalog" },
   { key: "pdpCr", stage: "pdp" },
   { key: "atcCr", stage: "atc" },
@@ -21,7 +28,11 @@ const CR_FIELDS: Array<{ key: keyof BaselineInput; stage: "catalog" | "pdp" | "a
   { key: "orderCr", stage: "order" },
 ];
 
-const FINANCIAL_FIELDS: Array<{ key: keyof BaselineInput; textKey: "buyout" | "atv" | "upt"; step?: number }> = [
+const FINANCIAL_FIELDS: Array<{
+  key: Exclude<keyof BaselineInput, "seasonalityWeights">;
+  textKey: "buyout" | "atv" | "upt";
+  step?: number;
+}> = [
   { key: "buyoutRate", textKey: "buyout", step: 0.001 },
   { key: "atv", textKey: "atv", step: 1 },
   { key: "upt", textKey: "upt", step: 0.01 },
@@ -115,14 +126,7 @@ export function BaselineTable({ baseline, locale, onChange }: BaselineTableProps
   );
 
   return (
-    <section className="section-card">
-      <div className="section-header">
-        <div>
-          <h2>{text.baselineTitle}</h2>
-          <p>{text.baselineDescription}</p>
-        </div>
-      </div>
-
+    <CollapsibleSection title={text.baselineTitle}>
       <div className="table-wrap">
         <table className="matrix-table">
           <thead>
@@ -213,6 +217,6 @@ export function BaselineTable({ baseline, locale, onChange }: BaselineTableProps
           <strong>{formatCurrency(derived.netRevenue)}</strong>
         </div>
       </div>
-    </section>
+    </CollapsibleSection>
   );
 }

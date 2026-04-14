@@ -22,6 +22,7 @@ const exampleTask: Task = {
   impact2Type: "absolute_pp",
   impact2Value: 0.02,
   releaseMonth: 4,
+  devCommittedReleaseMonth: 4,
   active: true,
   comment: "Test task",
 };
@@ -39,6 +40,7 @@ describe("task import template", () => {
       workbook.Sheets["Шаблон задач"],
     );
 
+    expect(taskRows[0].task_id).toBe("task-1");
     expect(taskRows[0].task_name).toBe("Checkout Redesign");
     expect(taskRows[0].priority).toBe("p1");
     expect(taskRows[0].impact_1_value).toBe(15);
@@ -83,7 +85,15 @@ describe("task import template", () => {
       impact2Type: "absolute_pp",
       impact2Value: 0.02,
       releaseMonth: 7,
+      devCommittedReleaseMonth: 7,
     });
+  });
+
+  it("uses task_id column when present so ids round-trip", () => {
+    const workbook = buildTaskImportWorkbook({ locale: "en", tasks: [exampleTask] });
+    const file = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+    const result = parseTaskImportWorkbook(file, "en");
+    expect(result.tasks[0]?.id).toBe("task-1");
   });
 
   it("treats decimal Excel values as percentage inputs, not normalized ratios", () => {

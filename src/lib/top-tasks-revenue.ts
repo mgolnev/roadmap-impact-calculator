@@ -1,5 +1,7 @@
-import type { Locale, Task, TaskValueMetrics } from "@/lib/types";
+import type { Locale, Task, TaskValueMetrics, TimelineMode } from "@/lib/types";
+import { effectiveReleaseMonth } from "@/lib/timeline";
 
+import { formatTaskImpactCeoCompactSummary, formatTaskImpactCeoVerboseSummary } from "@/lib/task-impact-ceo";
 import { formatTaskImpactSummary } from "@/lib/task-impact-summary";
 
 export type TopTaskRevenueRow = {
@@ -8,6 +10,10 @@ export type TopTaskRevenueRow = {
   project: string;
   incremental: number;
   impactSummary: string;
+  /** Колонка CR Δ в CEO-приложении: «+10% C/O», «+7pp BO». */
+  impactCeoCompact: string;
+  /** RU: развёрнуто «Чекаут: 10,0% к конверсии шага». */
+  impactCeoVerbose: string;
   releaseMonth: number;
 };
 
@@ -30,6 +36,7 @@ export const buildTopTasksRevenueBundle = (
   taskMetrics: Record<string, TaskValueMetrics>,
   locale: Locale,
   includeTask: (task: Task) => boolean,
+  timelineMode: TimelineMode = "plan",
 ): TopTasksRevenueBundle => {
   const sorted = tasks
     .filter(includeTask)
@@ -39,7 +46,9 @@ export const buildTopTasksRevenueBundle = (
       project: task.project.trim(),
       incremental: taskMetrics[task.id]?.incrementalCurrent ?? 0,
       impactSummary: formatTaskImpactSummary(task, locale),
-      releaseMonth: task.releaseMonth,
+      impactCeoCompact: formatTaskImpactCeoCompactSummary(task, locale),
+      impactCeoVerbose: formatTaskImpactCeoVerboseSummary(task, locale),
+      releaseMonth: effectiveReleaseMonth(task, timelineMode),
     }))
     .sort((a, b) => b.incremental - a.incremental);
 

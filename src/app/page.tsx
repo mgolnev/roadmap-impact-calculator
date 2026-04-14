@@ -6,6 +6,8 @@ import * as XLSX from "xlsx";
 
 import { AnnualFunnelTable } from "@/components/AnnualFunnelTable";
 import { BaselineTable } from "@/components/BaselineTable";
+import { CollapsibleSection } from "@/components/CollapsibleSection";
+import { SeasonalityWeightsPanel } from "@/components/SeasonalityWeightsPanel";
 import { ImpactHighlights } from "@/components/ImpactHighlights";
 import { MonthlyModelTable } from "@/components/MonthlyModelTable";
 import { PreBacklogPanel } from "@/components/PreBacklogPanel";
@@ -39,7 +41,11 @@ export default function HomePage() {
     setBaseline,
     setLocale,
     setTrafficChangePercent,
+    timelineMode,
+    setTimelineMode,
     updateBaseline,
+    setSeasonalityWeights,
+    resetSeasonalityWeights,
     updateTask,
     updateIdea,
     setTasks,
@@ -67,16 +73,19 @@ export default function HomePage() {
   const allInitiativesForMetrics = useMemo(() => [...ideas, ...tasks], [ideas, tasks]);
 
   const baselineSimulation = useMemo(
-    () => simulateScenario(baseline, [], getTrafficMultiplier(trafficChangePercent)),
-    [baseline, trafficChangePercent],
+    () =>
+      simulateScenario(baseline, [], getTrafficMultiplier(trafficChangePercent), { timelineMode }),
+    [baseline, trafficChangePercent, timelineMode],
   );
   const projectedSimulation = useMemo(
-    () => simulateScenario(baseline, tasks, getTrafficMultiplier(trafficChangePercent)),
-    [baseline, trafficChangePercent, tasks],
+    () =>
+      simulateScenario(baseline, tasks, getTrafficMultiplier(trafficChangePercent), { timelineMode }),
+    [baseline, trafficChangePercent, tasks, timelineMode],
   );
   const taskMetrics = useMemo(
-    () => getTaskValueMetrics(baseline, allInitiativesForMetrics, trafficChangePercent),
-    [allInitiativesForMetrics, baseline, trafficChangePercent],
+    () =>
+      getTaskValueMetrics(baseline, allInitiativesForMetrics, trafficChangePercent, { timelineMode }),
+    [allInitiativesForMetrics, baseline, trafficChangePercent, timelineMode],
   );
   const fullyImplementedRates = useMemo(
     () => getFullyImplementedRates(baseline, tasks),
@@ -89,20 +98,24 @@ export default function HomePage() {
         tasks.map((task) => ({
           ...task,
           releaseMonth: 1,
+          devCommittedReleaseMonth: 1,
         })),
         getTrafficMultiplier(trafficChangePercent),
+        { timelineMode },
       ),
-    [baseline, tasks, trafficChangePercent],
+    [baseline, tasks, trafficChangePercent, timelineMode],
   );
   const topTasks = useMemo(() => {
     const noProject = locale === "ru" ? "Без проекта" : "No project";
-    return buildTopProjectRows(tasks, taskMetrics, noProject, (t) => t.active).map((r) => ({
-      projectName: r.project,
-      value: r.netRevenueContribution,
-      taskCount: r.taskCount,
-      latestReleaseMonth: r.latestReleaseMonth,
-    }));
-  }, [locale, taskMetrics, tasks]);
+    return buildTopProjectRows(tasks, taskMetrics, noProject, (t) => t.active, timelineMode).map(
+      (r) => ({
+        projectName: r.project,
+        value: r.netRevenueContribution,
+        taskCount: r.taskCount,
+        latestReleaseMonth: r.latestReleaseMonth,
+      }),
+    );
+  }, [locale, taskMetrics, tasks, timelineMode]);
 
   useEffect(() => {
     if (selectedProjectFilter || selectedStageFilter) {
@@ -118,6 +131,7 @@ export default function HomePage() {
       ideas,
       trafficChangePercent,
       taskMetrics,
+      timelineMode,
     });
     XLSX.writeFile(workbook, "roadmap-impact-calculator-2026.xlsx");
   };
@@ -135,6 +149,8 @@ export default function HomePage() {
       tasks,
       ideas,
       trafficChangePercent,
+      timelineMode,
+      pmData,
     });
 
     XLSX.writeFile(
@@ -186,6 +202,8 @@ export default function HomePage() {
       setTasks(imported.tasks.map((t) => withInitiativeDefaults(t)));
       setIdeas(imported.ideas.map((t) => withInitiativeDefaults(t)));
       setTrafficChangePercent(imported.trafficChangePercent);
+      setTimelineMode(imported.timelineMode);
+      setPMData(imported.pmData);
       setSelectedStageFilter("");
 
       setImportState({
@@ -253,6 +271,9 @@ export default function HomePage() {
         setIdeas((p.ideas as Task[]).map((t) => withInitiativeDefaults(t)));
       }
       if (typeof p?.trafficChangePercent === "number") setTrafficChangePercent(p.trafficChangePercent);
+      if (p?.timelineMode === "dev_committed" || p?.timelineMode === "plan") {
+        setTimelineMode(p.timelineMode);
+      }
       if (p?.pmData && typeof p.pmData === "object") setPMData(p.pmData);
 
       const timeStr = data.updated_at
@@ -370,6 +391,7 @@ export default function HomePage() {
       tasks,
       ideas,
       trafficChangePercent,
+      timelineMode,
       locale,
       pmData,
       _writeMode: "full",
@@ -499,6 +521,40 @@ export default function HomePage() {
         <>
           <BaselineTable locale={locale} baseline={baseline} onChange={updateBaseline} />
 
+          <CollapsibleSection
+            className="timeline-mode-card"
+            title={text.timelineModeLabel}
+            description={<p className="timeline-mode-hint">{text.timelineModeHint}</p>}
+            headerAside={
+              <div
+                className="tab-bar timeline-mode-tabs"
+                role="group"
+                aria-label={text.timelineModeLabel}
+              >
+                <button
+                  type="button"
+                  className={`tab-button ${timelineMode === "plan" ? "tab-active" : ""}`}
+                  aria-pressed={timelineMode === "plan"}
+                  onClick={() => setTimelineMode("plan")}
+                >
+                  {text.timelineModePlan}
+                </button>
+                <button
+                  type="button"
+                  className={`tab-button ${timelineMode === "dev_committed" ? "tab-active" : ""}`}
+                  aria-pressed={timelineMode === "dev_committed"}
+                  onClick={() => setTimelineMode("dev_committed")}
+                >
+                  {text.timelineModeDevCommitted}
+                </button>
+              </div>
+            }
+          >
+            {timelineMode === "dev_committed" ? (
+              <p className="toolbar-status timeline-mode-banner">{text.timelineModeBannerDev}</p>
+            ) : null}
+          </CollapsibleSection>
+
           <ImpactHighlights
             locale={locale}
             tasks={tasks}
@@ -524,11 +580,13 @@ export default function HomePage() {
             fullyImplementedRates={fullyImplementedRates.rates}
             taskMetrics={taskMetrics}
             topTasks={topTasks}
+            timelineMode={timelineMode}
           />
 
           <div ref={tasksSectionRef}>
           <TasksTable
             locale={locale}
+            timelineMode={timelineMode}
             tasks={tasks}
             taskMetrics={taskMetrics}
             importState={importState}
@@ -550,19 +608,32 @@ export default function HomePage() {
           />
           </div>
 
-          <details className="section-card details-card">
-            <summary>{text.detailedAnnual}</summary>
+          <CollapsibleSection
+            defaultOpen={false}
+            title={text.detailedAnnual}
+            description={<p>{text.annualDescription}</p>}
+          >
             <AnnualFunnelTable
               locale={locale}
               baseline={baselineSimulation.annual}
               projected={projectedSimulation.annual}
             />
-          </details>
+          </CollapsibleSection>
 
-          <details className="section-card details-card">
-            <summary>{text.monthlyModel}</summary>
+          <CollapsibleSection
+            defaultOpen={false}
+            title={text.monthlyModel}
+            description={<p>{text.monthlyDescription}</p>}
+          >
             <MonthlyModelTable locale={locale} rows={projectedSimulation.months} />
-          </details>
+          </CollapsibleSection>
+
+          <SeasonalityWeightsPanel
+            locale={locale}
+            weights={baseline.seasonalityWeights}
+            onCommit={setSeasonalityWeights}
+            onResetEqual={resetSeasonalityWeights}
+          />
         </>
       ) : null}
 

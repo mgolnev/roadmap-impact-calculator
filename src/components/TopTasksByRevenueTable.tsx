@@ -12,14 +12,22 @@ type TopTasksByRevenueTableProps = {
   variant: "dashboard" | "ceo";
   /** Не дублировать заголовок (если снаружи уже есть заголовок секции, напр. CEO). */
   omitHeading?: boolean;
+  /** Внутри общего блока с табами — без обёртки top-tasks (иначе двойная рамка). */
+  embedded?: boolean;
 };
 
 const pctOf = (part: number, total: number) =>
   total > 0 ? Math.round((part / total) * 100) : 0;
 
-export function TopTasksByRevenueTable({ locale, data, variant, omitHeading }: TopTasksByRevenueTableProps) {
+export function TopTasksByRevenueTable({ locale, data, variant, omitHeading, embedded }: TopTasksByRevenueTableProps) {
   const text = getText(locale);
-  const rootClass = `top-tasks top-revenue-table${variant === "ceo" ? " top-revenue-table--ceo" : ""}`;
+  const rootClass = [
+    embedded ? "" : "top-tasks",
+    "top-revenue-table",
+    variant === "ceo" ? "top-revenue-table--ceo" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   if (data.displayRows.length === 0) {
     return (
