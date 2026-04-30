@@ -218,6 +218,20 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
       year: props.projectedAnnual.buyoutRate,
       format: (value: number) => formatPercent(value),
     },
+    {
+      label: "Gross Revenue",
+      base: props.baselineAnnual.grossRevenue,
+      full: props.fullyImplementedAnnual.grossRevenue,
+      year: props.projectedAnnual.grossRevenue,
+      format: (value: number) => formatCurrency(value),
+    },
+    {
+      label: "NET revenue",
+      base: props.baselineAnnual.netRevenue,
+      full: props.fullyImplementedAnnual.netRevenue,
+      year: props.projectedAnnual.netRevenue,
+      format: (value: number) => formatCurrency(value),
+    },
   ];
 
   return (
@@ -487,20 +501,22 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
             </thead>
             <tbody>
               {conversionRows.map((row) => {
-                const taskCount = getTaskCount(row.stage);
+                const taskCount = row.stage ? getTaskCount(row.stage) : null;
 
                 return (
                   <tr key={row.label}>
                     <td>
                       <div className="metric-filter-cell">
                         <span>{row.label}</span>
-                        <button
-                          className={`metric-filter-button ${props.selectedStageFilter === row.stage ? "active" : ""}`}
-                          type="button"
-                          onClick={() => props.onSelectStageFilter(row.stage)}
-                        >
-                          ({taskCount})
-                        </button>
+                        {row.stage ? (
+                          <button
+                            className={`metric-filter-button ${props.selectedStageFilter === row.stage ? "active" : ""}`}
+                            type="button"
+                            onClick={() => props.onSelectStageFilter(row.stage)}
+                          >
+                            ({taskCount})
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                     <td>{row.format(row.base)}</td>
