@@ -288,6 +288,13 @@
   margin-top: 4px;
 }
 
+.ceo-impact-table__task-comment {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #4b5563;
+  line-height: 1.45;
+}
+
 .ceo-impact-table__cr-line + .ceo-impact-table__cr-line {
   margin-top: 6px;
   padding-top: 6px;

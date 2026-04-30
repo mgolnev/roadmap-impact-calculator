@@ -48,6 +48,7 @@ export const buildTopProjectsRevenueBundle = (
         id: projectName,
         taskName: projectName,
         project: "",
+        hypothesisComment: "",
         incremental: acc.contribution,
         impactSummary: lead ? formatTaskImpactSummary(lead, locale) : "—",
         impactCeoCompact: lead ? formatTaskImpactCeoCompactSummary(lead, locale) : "—",

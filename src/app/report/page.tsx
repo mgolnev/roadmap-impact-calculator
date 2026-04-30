@@ -11,7 +11,7 @@ import { formatCurrency, formatNumber, formatPercent, formatPercentForLocale } f
 import { getText, getStageLabels } from "@/lib/i18n";
 import { buildTopProjectsRevenueBundle } from "@/lib/top-projects-revenue";
 import { buildTopTasksRevenueBundle } from "@/lib/top-tasks-revenue";
-import { getTaskValueMetrics, getTrafficMultiplier, simulateScenario } from "@/lib/calculations";
+import { getFullyImplementedRates, getTaskValueMetrics, getTrafficMultiplier, simulateScenario } from "@/lib/calculations";
 import { taskCountsTowardPlan } from "@/lib/initiative";
 import { useCalculatorStore } from "@/store/calculator-store";
 
@@ -50,6 +50,24 @@ export default function CeoReportPage() {
   const taskMetrics = useMemo(
     () => getTaskValueMetrics(baseline, allForMetrics, trafficChangePercent, { timelineMode }),
     [allForMetrics, baseline, trafficChangePercent, timelineMode],
+  );
+  const fullyImplementedRates = useMemo(
+    () => getFullyImplementedRates(baseline, tasks),
+    [baseline, tasks],
+  );
+  const fullyImplementedSimulation = useMemo(
+    () =>
+      simulateScenario(
+        baseline,
+        tasks.map((task) => ({
+          ...task,
+          releaseMonth: 1,
+          devCommittedReleaseMonth: 1,
+        })),
+        getTrafficMultiplier(trafficChangePercent),
+        { timelineMode },
+      ),
+    [baseline, tasks, trafficChangePercent, timelineMode],
   );
 
   const funnelRows = useMemo(
@@ -114,6 +132,85 @@ export default function CeoReportPage() {
     dateStyle: "long",
     timeStyle: "short",
   });
+  const conversionRows = [
+    {
+      label: locale === "ru" ? "Сессии / Трафик" : "Sessions / Traffic",
+      base: baselineSimulation.annual.sessions,
+      full: fullyImplementedSimulation.annual.sessions,
+      year: projectedSimulation.annual.sessions,
+      format: (value: number) => formatNumber(value),
+    },
+    {
+      label: locale === "ru" ? "Сессии -> Каталог" : "Sessions -> Catalog",
+      base: baselineSimulation.annual.rates.catalogCr,
+      full: fullyImplementedRates.rates.catalogCr,
+      year: projectedSimulation.annual.rates.catalogCr,
+      format: (value: number) => formatPercent(value),
+    },
+    {
+      label: locale === "ru" ? "Каталог -> PDP" : "Catalog -> PDP",
+      base: baselineSimulation.annual.rates.pdpCr,
+      full: fullyImplementedRates.rates.pdpCr,
+      year: projectedSimulation.annual.rates.pdpCr,
+      format: (value: number) => formatPercent(value),
+    },
+    {
+      label: locale === "ru" ? "PDP -> Добавление в корзину" : "PDP -> Add to cart",
+      base: baselineSimulation.annual.rates.atcCr,
+      full: fullyImplementedRates.rates.atcCr,
+      year: projectedSimulation.annual.rates.atcCr,
+      format: (value: number) => formatPercent(value),
+    },
+    {
+      label: locale === "ru" ? "Добавление в корзину -> Checkout" : "Add to cart -> Checkout",
+      base: baselineSimulation.annual.rates.checkoutCr,
+      full: fullyImplementedRates.rates.checkoutCr,
+      year: projectedSimulation.annual.rates.checkoutCr,
+      format: (value: number) => formatPercent(value),
+    },
+    {
+      label: locale === "ru" ? "Checkout -> Заказ" : "Checkout -> Order",
+      base: baselineSimulation.annual.rates.orderCr,
+      full: fullyImplementedRates.rates.orderCr,
+      year: projectedSimulation.annual.rates.orderCr,
+      format: (value: number) => formatPercent(value),
+    },
+    {
+      label: stageLabels.atv,
+      base: baselineSimulation.annual.atv,
+      full: fullyImplementedSimulation.annual.atv,
+      year: projectedSimulation.annual.atv,
+      format: (value: number) => formatCurrency(value),
+    },
+    {
+      label: stageLabels.upt,
+      base: baselineSimulation.annual.upt,
+      full: fullyImplementedSimulation.annual.upt,
+      year: projectedSimulation.annual.upt,
+      format: (value: number) => formatNumber(value, 2),
+    },
+    {
+      label: stageLabels.buyout,
+      base: baselineSimulation.annual.buyoutRate,
+      full: fullyImplementedSimulation.annual.buyoutRate,
+      year: projectedSimulation.annual.buyoutRate,
+      format: (value: number) => formatPercent(value),
+    },
+    {
+      label: "Gross Revenue",
+      base: baselineSimulation.annual.grossRevenue,
+      full: fullyImplementedSimulation.annual.grossRevenue,
+      year: projectedSimulation.annual.grossRevenue,
+      format: (value: number) => formatCurrency(value),
+    },
+    {
+      label: "NET revenue",
+      base: baselineSimulation.annual.netRevenue,
+      full: fullyImplementedSimulation.annual.netRevenue,
+      year: projectedSimulation.annual.netRevenue,
+      format: (value: number) => formatCurrency(value),
+    },
+  ];
 
   const printReport = () => {
     window.print();
@@ -199,6 +296,32 @@ export default function CeoReportPage() {
                   <td className={`num ${row.delta >= 0 ? "delta-pos" : "delta-neg"}`}>
                     {formatDeltaCell(row, row.delta)}
                   </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="ceo-report__section">
+        <h2>{text.allMetricsImpactTitle}</h2>
+        <div className="ceo-report__table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>{text.stage}</th>
+                <th className="num">{text.base}</th>
+                <th className="num">{text.fullyImplemented}</th>
+                <th className="num">{text.annualAverage}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {conversionRows.map((row) => (
+                <tr key={row.label}>
+                  <td>{row.label}</td>
+                  <td className="num">{row.format(row.base)}</td>
+                  <td className="num">{row.format(row.full)}</td>
+                  <td className="num">{row.format(row.year)}</td>
                 </tr>
               ))}
             </tbody>

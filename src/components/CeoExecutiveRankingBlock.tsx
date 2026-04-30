@@ -68,6 +68,9 @@ export function CeoExecutiveRankingBlock({
                   {mode === "tasks" && row.project ? (
                     <div className="ceo-impact-table__task-project">{row.project}</div>
                   ) : null}
+                  {mode === "tasks" && row.hypothesisComment ? (
+                    <div className="ceo-impact-table__task-comment">{row.hypothesisComment}</div>
+                  ) : null}
                 </td>
                 <td
                   className={`ceo-impact-table__td-impact num ${row.incremental >= 0 ? "ceo-impact-table__metric-pos" : "ceo-impact-table__metric-neg"}`}

@@ -8,6 +8,7 @@ export type TopTaskRevenueRow = {
   id: string;
   taskName: string;
   project: string;
+  hypothesisComment: string;
   incremental: number;
   impactSummary: string;
   /** Колонка CR Δ в CEO-приложении: «+10% C/O», «+7pp BO». */
@@ -42,6 +43,7 @@ export const buildTopTasksRevenueBundle = (
       id: task.id,
       taskName: task.taskName.trim() || "—",
       project: task.project.trim(),
+      hypothesisComment: task.comment.trim(),
       incremental: taskMetrics[task.id]?.incrementalCurrent ?? 0,
       impactSummary: formatTaskImpactSummary(task, locale),
       impactCeoCompact: formatTaskImpactCeoCompactSummary(task, locale),
