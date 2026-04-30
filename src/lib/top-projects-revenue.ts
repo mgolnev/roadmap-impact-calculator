@@ -4,8 +4,6 @@ import { formatTaskImpactCeoCompactSummary, formatTaskImpactCeoVerboseSummary } 
 import { formatTaskImpactSummary } from "@/lib/task-impact-summary";
 import type { TopTasksRevenueBundle } from "@/lib/top-tasks-revenue";
 
-const DISPLAY_LIMIT = 10;
-
 type ProjectAcc = {
   contribution: number;
   tasks: Task[];
@@ -63,7 +61,7 @@ export const buildTopProjectsRevenueBundle = (
   const sumTop10 = sorted.slice(0, 10).reduce((s, r) => s + r.incremental, 0);
 
   return {
-    displayRows: sorted.slice(0, DISPLAY_LIMIT),
+    displayRows: sorted,
     sumTotal,
     sumTop3,
     sumTop10,
