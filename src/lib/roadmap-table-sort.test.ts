@@ -52,6 +52,7 @@ describe("compareRoadmapTasks", () => {
       standalone30: 0,
       incrementalCurrent: 0,
       valuePerMonth: 10,
+      valuePerYearIgnoreRelease: 120,
     };
     const mb: TaskValueMetrics = {
       monthsActive: 1,
@@ -61,8 +62,35 @@ describe("compareRoadmapTasks", () => {
       standalone30: 0,
       incrementalCurrent: 0,
       valuePerMonth: 20,
+      valuePerYearIgnoreRelease: 240,
     };
     expect(compareRoadmapTasks(a, b, ma, mb, "valuePerMonth", "asc")).toBeLessThan(0);
+  });
+
+  it("uses metrics for valuePerYearIgnoreRelease", () => {
+    const a = baseTask({ id: "a" });
+    const b = baseTask({ id: "b" });
+    const ma: TaskValueMetrics = {
+      monthsActive: 1,
+      standaloneBase: 0,
+      standalone15: 0,
+      standalone20: 0,
+      standalone30: 0,
+      incrementalCurrent: 0,
+      valuePerMonth: 10,
+      valuePerYearIgnoreRelease: 100,
+    };
+    const mb: TaskValueMetrics = {
+      monthsActive: 1,
+      standaloneBase: 0,
+      standalone15: 0,
+      standalone20: 0,
+      standalone30: 0,
+      incrementalCurrent: 0,
+      valuePerMonth: 20,
+      valuePerYearIgnoreRelease: 300,
+    };
+    expect(compareRoadmapTasks(a, b, ma, mb, "valuePerYearIgnoreRelease", "asc")).toBeLessThan(0);
   });
 
   it("tie-breaks by id", () => {

@@ -393,6 +393,7 @@ export const getTaskValueMetrics = (
           .netRevenue - plus30BaseNet;
       const effMonth = effectiveReleaseMonth(task, timelineMode);
       const monthsActive = Math.max(0, 13 - effMonth);
+      const valuePerMonth = monthsActive > 0 ? standaloneBase / monthsActive : 0;
       const incrementalCurrent = taskCountsTowardPlan(task)
         ? currentPlanContributions.get(task.id) ?? 0
         : 0;
@@ -406,7 +407,8 @@ export const getTaskValueMetrics = (
           standalone20,
           standalone30,
           incrementalCurrent,
-          valuePerMonth: monthsActive > 0 ? standaloneBase / monthsActive : 0,
+          valuePerMonth,
+          valuePerYearIgnoreRelease: valuePerMonth * 12,
         },
       ];
     }),

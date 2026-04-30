@@ -43,3 +43,54 @@ export const buildTopProjectRows = (
       }, new Map<string, TopProjectRow>())
       .values(),
   ).sort((a, b) => b.netRevenueContribution - a.netRevenueContribution);
+
+/**
+ * Все уникальные названия проектов из списка задач; вклад и число задач — только по `planTaskFilter`
+ * (например `taskCountsTowardPlan`). Месяц — максимум среди задач плана, иначе среди всех задач проекта.
+ */
+export const buildLeaderboardProjectRows = (
+  tasks: Task[],
+  taskMetrics: Record<string, TaskValueMetrics>,
+  noProjectLabel: string,
+  planTaskFilter: (task: Task) => boolean,
+  timelineMode: TimelineMode = "plan",
+): TopProjectRow[] => {
+  const keys = new Set<string>();
+  for (const task of tasks) {
+    keys.add(task.project.trim() || noProjectLabel);
+  }
+
+  return Array.from(keys)
+    .map((projectKey) => {
+      const projectTasks = tasks.filter(
+        (t) => (t.project.trim() || noProjectLabel) === projectKey,
+      );
+      const planTasks = projectTasks.filter(planTaskFilter);
+
+      let netRevenueContribution = 0;
+      let latestReleaseMonth = 0;
+      for (const task of planTasks) {
+        netRevenueContribution += taskMetrics[task.id]?.incrementalCurrent ?? 0;
+        latestReleaseMonth = Math.max(
+          latestReleaseMonth,
+          effectiveReleaseMonth(task, timelineMode),
+        );
+      }
+      if (latestReleaseMonth === 0) {
+        for (const task of projectTasks) {
+          latestReleaseMonth = Math.max(
+            latestReleaseMonth,
+            effectiveReleaseMonth(task, timelineMode),
+          );
+        }
+      }
+
+      return {
+        project: projectKey,
+        netRevenueContribution,
+        taskCount: planTasks.length,
+        latestReleaseMonth,
+      } satisfies TopProjectRow;
+    })
+    .sort((a, b) => b.netRevenueContribution - a.netRevenueContribution);
+};

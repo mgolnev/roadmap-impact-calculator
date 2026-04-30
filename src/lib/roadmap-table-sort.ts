@@ -11,6 +11,7 @@ export const ROADMAP_SORT_COLUMNS = [
   "standalone",
   "incremental",
   "valuePerMonth",
+  "valuePerYearIgnoreRelease",
   "comment",
   "priority",
   "initiativeStatus",
@@ -87,6 +88,9 @@ export function compareRoadmapTasks(
       break;
     case "valuePerMonth":
       c = (ma?.valuePerMonth ?? 0) - (mb?.valuePerMonth ?? 0);
+      break;
+    case "valuePerYearIgnoreRelease":
+      c = (ma?.valuePerYearIgnoreRelease ?? 0) - (mb?.valuePerYearIgnoreRelease ?? 0);
       break;
     case "comment":
       c = cmpStr(a.comment.trim(), b.comment.trim());

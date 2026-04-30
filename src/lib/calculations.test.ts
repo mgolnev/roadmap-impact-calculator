@@ -188,6 +188,24 @@ describe("simulateScenario", () => {
     expect(metrics["upt-task"].standaloneBase).toBeGreaterThan(0);
   });
 
+  it("annualizes monthly run-rate to twelve months for valuePerYearIgnoreRelease", () => {
+    const metrics = getTaskValueMetrics(
+      baseline,
+      [
+        createTask({
+          id: "m-task",
+          stage1: "order",
+          impact1Type: "relative_percent",
+          impact1Value: 0.1,
+          releaseMonth: 4,
+        }),
+      ],
+      0,
+    );
+    const m = metrics["m-task"];
+    expect(m.valuePerYearIgnoreRelease).toBeCloseTo(m.valuePerMonth * 12, 6);
+  });
+
   it("splits roadmap contribution sequentially so task values sum to total delta", () => {
     const tasks = [
       createTask({

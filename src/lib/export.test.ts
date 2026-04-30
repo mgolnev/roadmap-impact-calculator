@@ -57,6 +57,7 @@ describe("buildRoadmapImpactWorkbook", () => {
           standalone30: 1500,
           incrementalCurrent: 900,
           valuePerMonth: 111,
+          valuePerYearIgnoreRelease: 1332,
         },
       },
     });

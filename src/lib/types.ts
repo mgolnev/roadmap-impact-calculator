@@ -147,6 +147,8 @@ export type TaskValueMetrics = {
   standalone30: number;
   incrementalCurrent: number;
   valuePerMonth: number;
+  /** Годовой эффект при том же месячном темпе, без учёта доли года после релиза (12 × эффект в месяц). */
+  valuePerYearIgnoreRelease: number;
 };
 
 export type PhaseStatus = "not_started" | "in_progress" | "done" | "blocked" | "skipped";

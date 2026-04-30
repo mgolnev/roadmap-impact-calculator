@@ -18,15 +18,13 @@ export type TopTaskRevenueRow = {
 };
 
 export type TopTasksRevenueBundle = {
-  /** Строки таблицы (ограничение по числу). */
+  /** Строки таблицы (полный отсортированный список). */
   displayRows: TopTaskRevenueRow[];
   /** Сумма инкремента по всем отфильтрованным задачам. */
   sumTotal: number;
   sumTop3: number;
   sumTop10: number;
 };
-
-const DISPLAY_LIMIT = 10;
 
 /**
  * Ранжирование задач по incremental в плане + агрегаты для футера (ТОП‑3 / ТОП‑10 / всего).
@@ -57,7 +55,7 @@ export const buildTopTasksRevenueBundle = (
   const sumTop10 = sorted.slice(0, 10).reduce((s, r) => s + r.incremental, 0);
 
   return {
-    displayRows: sorted.slice(0, DISPLAY_LIMIT),
+    displayRows: sorted,
     sumTotal,
     sumTop3,
     sumTop10,

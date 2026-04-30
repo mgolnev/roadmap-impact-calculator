@@ -431,7 +431,9 @@ export function ImpactHighlights(props: ImpactHighlightsProps) {
                           className="top-revenue-table__td-timing"
                           title={text.topProjectLatestReleaseTitle}
                         >
-                          {getMonthLabel(props.locale, task.latestReleaseMonth)}
+                          {task.latestReleaseMonth > 0
+                            ? getMonthLabel(props.locale, task.latestReleaseMonth)
+                            : "—"}
                         </td>
                       </tr>
                     );

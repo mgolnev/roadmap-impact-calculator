@@ -15,7 +15,7 @@ import { ProjectTracker } from "@/components/ProjectTracker";
 import { TasksTable } from "@/components/TasksTable";
 import { getText } from "@/lib/i18n";
 import { buildRoadmapImpactWorkbook } from "@/lib/export";
-import { buildTopProjectRows } from "@/lib/top-projects";
+import { buildLeaderboardProjectRows } from "@/lib/top-projects";
 import { buildScenarioBackupWorkbook, parseScenarioBackupWorkbook } from "@/lib/scenario-backup";
 import { buildTaskImportWorkbook, parseTaskImportWorkbook } from "@/lib/task-template";
 import {
@@ -24,7 +24,7 @@ import {
   getTrafficMultiplier,
   simulateScenario,
 } from "@/lib/calculations";
-import { withInitiativeDefaults } from "@/lib/initiative";
+import { taskCountsTowardPlan, withInitiativeDefaults } from "@/lib/initiative";
 import { AdjustableStage, SharedRoadmapPayload, Task } from "@/lib/types";
 import { persistIdeasOnlyToSupabase } from "@/lib/persist-ideas-supabase";
 import { getSupabaseClientAsync } from "@/lib/supabase";
@@ -107,14 +107,18 @@ export default function HomePage() {
   );
   const topTasks = useMemo(() => {
     const noProject = locale === "ru" ? "Без проекта" : "No project";
-    return buildTopProjectRows(tasks, taskMetrics, noProject, (t) => t.active, timelineMode).map(
-      (r) => ({
-        projectName: r.project,
-        value: r.netRevenueContribution,
-        taskCount: r.taskCount,
-        latestReleaseMonth: r.latestReleaseMonth,
-      }),
-    );
+    return buildLeaderboardProjectRows(
+      tasks,
+      taskMetrics,
+      noProject,
+      taskCountsTowardPlan,
+      timelineMode,
+    ).map((r) => ({
+      projectName: r.project,
+      value: r.netRevenueContribution,
+      taskCount: r.taskCount,
+      latestReleaseMonth: r.latestReleaseMonth,
+    }));
   }, [locale, taskMetrics, tasks, timelineMode]);
 
   useEffect(() => {

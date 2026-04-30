@@ -304,6 +304,7 @@ export const buildRoadmapImpactWorkbook = ({
           monthsActive: "Мес. активности",
           standaloneBase: "Standalone, ₽",
           valuePerMonth: "₽ / мес.",
+          valuePerYearIgnoreRelease: "Эффект в год (без учёта релиза), ₽",
           comment: "Комментарий",
         }
       : {
@@ -327,6 +328,7 @@ export const buildRoadmapImpactWorkbook = ({
           monthsActive: "Active months",
           standaloneBase: "Standalone",
           valuePerMonth: "Per month",
+          valuePerYearIgnoreRelease: "Effect per year (release excluded)",
           comment: "Comment",
         };
 
@@ -351,6 +353,7 @@ export const buildRoadmapImpactWorkbook = ({
     [taskCol.monthsActive]: taskMetrics[task.id]?.monthsActive ?? 0,
     [taskCol.standaloneBase]: taskMetrics[task.id]?.standaloneBase ?? 0,
     [taskCol.valuePerMonth]: taskMetrics[task.id]?.valuePerMonth ?? 0,
+    [taskCol.valuePerYearIgnoreRelease]: taskMetrics[task.id]?.valuePerYearIgnoreRelease ?? 0,
     [taskCol.comment]: task.comment,
   });
 

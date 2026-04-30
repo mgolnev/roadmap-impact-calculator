@@ -660,6 +660,12 @@ export function TasksTable({
                 sort={roadmapTableSort}
               />
               <RoadmapSortTh
+                column="valuePerYearIgnoreRelease"
+                label={text.valuePerYearIgnoreRelease}
+                onToggle={toggleRoadmapTableSort}
+                sort={roadmapTableSort}
+              />
+              <RoadmapSortTh
                 column="comment"
                 label={text.comment}
                 onToggle={toggleRoadmapTableSort}
@@ -759,6 +765,7 @@ export function TasksTable({
                   <td>{formatCurrency(metrics?.standaloneBase ?? 0)}</td>
                   <td>{formatCurrency(metrics?.incrementalCurrent ?? 0)}</td>
                   <td>{formatCurrency(metrics?.valuePerMonth ?? 0)}</td>
+                  <td>{formatCurrency(metrics?.valuePerYearIgnoreRelease ?? 0)}</td>
                   <td>
                     <textarea
                       className="cell-input text-area"
@@ -830,6 +837,14 @@ export function TasksTable({
               <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.standaloneBase ?? 0), 0))}</td>
               <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.incrementalCurrent ?? 0), 0))}</td>
               <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.valuePerMonth ?? 0), 0))}</td>
+              <td>
+                {formatCurrency(
+                  filteredTasks.reduce(
+                    (acc, task) => acc + (taskMetrics[task.id]?.valuePerYearIgnoreRelease ?? 0),
+                    0,
+                  ),
+                )}
+              </td>
               <td colSpan={3}>{formatNumber(activeTasksCount)} {text.activeTasks}</td>
             </tr>
           </tfoot>
