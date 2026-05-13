@@ -2,6 +2,38 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 let cachedClient: SupabaseClient | null = null;
 
+const stringifyUnknown = (value: unknown): string => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value == null) return "";
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+export const formatSupabaseError = (error: unknown): string => {
+  if (!error) return "Unknown Supabase error";
+  if (typeof error === "string") return error;
+  if (error instanceof Error && error.message) return error.message;
+
+  if (typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const parts = [
+      stringifyUnknown(record.message),
+      record.details ? `details: ${stringifyUnknown(record.details)}` : "",
+      record.hint ? `hint: ${stringifyUnknown(record.hint)}` : "",
+      record.code ? `code: ${stringifyUnknown(record.code)}` : "",
+    ].filter(Boolean);
+
+    if (parts.length > 0) return parts.join(" | ");
+  }
+
+  return stringifyUnknown(error) || "Unknown Supabase error";
+};
+
 /**
  * Не подставлять baked `public/supabase-config.json` (часто с прод-ключами после build),
  * если работаем локально или в `next dev` — иначе при пустом .env.local клиент всё равно ходит в прод.

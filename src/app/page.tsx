@@ -27,9 +27,38 @@ import {
 import { taskCountsTowardPlan, withInitiativeDefaults } from "@/lib/initiative";
 import { AdjustableStage, SharedRoadmapPayload, Task } from "@/lib/types";
 import { persistIdeasOnlyToSupabase } from "@/lib/persist-ideas-supabase";
-import { getSupabaseClientAsync } from "@/lib/supabase";
+import { formatSupabaseError, getSupabaseClientAsync } from "@/lib/supabase";
 import { useCalculatorStore } from "@/store/calculator-store";
 import { usePMStore } from "@/store/pm-store";
+
+type RoadmapStateRow = {
+  id: number;
+  payload: Partial<SharedRoadmapPayload> | null;
+  updated_at?: string | null;
+};
+
+async function fetchRoadmapStateRow(
+  supabase: NonNullable<Awaited<ReturnType<typeof getSupabaseClientAsync>>>,
+): Promise<RoadmapStateRow | null> {
+  const byCanonicalId = await supabase
+    .from("roadmap_state")
+    .select("id, payload, updated_at")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (byCanonicalId.error) throw byCanonicalId.error;
+  if (byCanonicalId.data) return byCanonicalId.data as RoadmapStateRow;
+
+  const latest = await supabase
+    .from("roadmap_state")
+    .select("id, payload, updated_at")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latest.error) throw latest.error;
+  return (latest.data as RoadmapStateRow | null) ?? null;
+}
 
 export default function HomePage() {
   const {
@@ -303,17 +332,18 @@ export default function HomePage() {
       const supabase = await getSupabaseClientAsync();
       if (!supabase) return;
 
-      const { data, error } = await supabase
-        .from("roadmap_state")
-        .select("payload, updated_at")
-        .eq("id", 1)
-        .maybeSingle();
+      let data: RoadmapStateRow | null = null;
+      try {
+        data = await fetchRoadmapStateRow(supabase);
+      } catch {
+        return;
+      }
 
-      if (error || !data?.payload) return;
+      if (!data?.payload) return;
 
       const payload = data.payload as Partial<SharedRoadmapPayload>;
       const loc = (payload.locale as "ru" | "en") || locale;
-      applyPayloadAndStatus(data, loc, "initial");
+      applyPayloadAndStatus({ payload, updated_at: data.updated_at ?? null }, loc, "initial");
 
       const ch = supabase
         .channel("roadmap_state_changes")
@@ -390,45 +420,56 @@ export default function HomePage() {
       return;
     }
 
-    const payload: SharedRoadmapPayload = {
-      baseline,
-      tasks,
-      ideas,
-      trafficChangePercent,
-      timelineMode,
-      locale,
-      pmData,
-      _writeMode: "full",
-    };
-
     setSharedStatus(locale === "ru" ? "Сохранение..." : "Saving...");
 
-    const updated = { payload, updated_at: new Date().toISOString() };
-    const { data: existing } = await supabase
-      .from("roadmap_state")
-      .select("id")
-      .eq("id", 1)
-      .maybeSingle();
-
-    const { error } = existing
-      ? await supabase.from("roadmap_state").update(updated).eq("id", 1)
-      : await supabase.from("roadmap_state").insert(updated);
-
-    if (error) {
+    const calc = useCalculatorStore.getState();
+    const pm = usePMStore.getState();
+    let serverPayload: Partial<SharedRoadmapPayload> | null = null;
+    try {
+      serverPayload = (await fetchRoadmapStateRow(supabase))?.payload ?? null;
+    } catch (error) {
       setSharedStatus(
-        (locale === "ru" ? "Ошибка сохранения: " : "Failed to save: ") + error.message,
+        (calc.locale === "ru" ? "Ошибка сохранения: " : "Failed to save: ") +
+          formatSupabaseError(error),
       );
       return;
     }
 
-    const timeStr = new Date().toLocaleTimeString(locale === "ru" ? "ru-RU" : "en-GB", {
+    const serverIdeas = Array.isArray(serverPayload?.ideas)
+      ? (serverPayload.ideas as Task[]).map((t) => withInitiativeDefaults(t))
+      : [];
+    const payloadIdeas = calc.ideas.length === 0 && serverIdeas.length > 0 ? serverIdeas : calc.ideas;
+
+    const payload: SharedRoadmapPayload = {
+      baseline: calc.baseline,
+      tasks: calc.tasks,
+      ideas: payloadIdeas,
+      trafficChangePercent: calc.trafficChangePercent,
+      timelineMode: calc.timelineMode,
+      locale: calc.locale,
+      pmData: pm.pmData,
+      _writeMode: "full",
+    };
+
+    const updated = { id: 1, payload, updated_at: new Date().toISOString() };
+    const { error } = await supabase.from("roadmap_state").upsert(updated, { onConflict: "id" });
+
+    if (error) {
+      setSharedStatus(
+        (calc.locale === "ru" ? "Ошибка сохранения: " : "Failed to save: ") +
+          formatSupabaseError(error),
+      );
+      return;
+    }
+
+    const timeStr = new Date().toLocaleTimeString(calc.locale === "ru" ? "ru-RU" : "en-GB", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
       hour12: false,
     });
     setSharedStatus(
-      locale === "ru" ? `Роадмап сохранён в ${timeStr}` : `Roadmap saved at ${timeStr}`,
+      calc.locale === "ru" ? `Роадмап сохранён в ${timeStr}` : `Roadmap saved at ${timeStr}`,
     );
   };
 

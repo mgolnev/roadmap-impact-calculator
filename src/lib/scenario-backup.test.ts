@@ -5,7 +5,7 @@ import { buildScenarioBackupWorkbook, parseScenarioBackupWorkbook } from "@/lib/
 import { withInitiativeDefaults } from "@/lib/initiative";
 import { uniformSeasonalityWeights } from "@/lib/seasonality";
 import { emptyPhases, emptyPMData } from "@/store/pm-store";
-import { BaselineInput, Task } from "@/lib/types";
+import { BaselineInput, Task, TaskPMData } from "@/lib/types";
 
 const baseline: BaselineInput = {
   sessions: 1000,
@@ -147,7 +147,7 @@ describe("scenario backup workbook", () => {
   });
 
   it("round-trips PM (project management) data on PM sheet", () => {
-    const pmRow = {
+    const pmRow: TaskPMData = {
       ...emptyPMData(),
       managerGJ: "Lead PM",
       manager: "Partner",

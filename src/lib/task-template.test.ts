@@ -89,6 +89,68 @@ describe("task import template", () => {
     });
   });
 
+  it("accepts legacy human-readable funnel stage aliases", () => {
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.json_to_sheet([
+      {
+        active: "TRUE",
+        project: "Checkout",
+        task_name: "One step checkout",
+        stage_1: "Checkout -> Order",
+        impact_1_type: "relative_percent",
+        impact_1_value: 10,
+        stage_2: "C/O",
+        impact_2_type: "absolute_pp",
+        impact_2_value: 2,
+        release_month: 6,
+      },
+      {
+        active: "TRUE",
+        project: "Fulfillment",
+        task_name: "Buyout growth",
+        stage_1: "BO",
+        impact_1_type: "relative_percent",
+        impact_1_value: 5,
+        release_month: 7,
+      },
+    ]);
+
+    XLSX.utils.book_append_sheet(workbook, sheet, "Шаблон задач");
+
+    const file = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+    const result = parseTaskImportWorkbook(file, "ru");
+
+    expect(result.tasks[0]).toMatchObject({ stage1: "order", stage2: "checkout" });
+    expect(result.tasks[1]).toMatchObject({ stage1: "buyout" });
+  });
+
+  it("allows an empty primary stage when the primary impact is zero", () => {
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.json_to_sheet([
+      {
+        active: "TRUE",
+        project: "Delivery",
+        task_name: "KSE delivery",
+        stage_1: "",
+        impact_1_type: "relative_percent",
+        impact_1_value: 0,
+        release_month: 5,
+      },
+    ]);
+
+    XLSX.utils.book_append_sheet(workbook, sheet, "Шаблон задач");
+
+    const file = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+    const result = parseTaskImportWorkbook(file, "ru");
+
+    expect(result.tasks[0]).toMatchObject({
+      taskName: "KSE delivery",
+      stage1: undefined,
+      impact1Type: undefined,
+      impact1Value: 0,
+    });
+  });
+
   it("uses task_id column when present so ids round-trip", () => {
     const workbook = buildTaskImportWorkbook({ locale: "en", tasks: [exampleTask] });
     const file = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
@@ -118,5 +180,34 @@ describe("task import template", () => {
 
     expect(result.tasks[0]?.impact1Value).toBeCloseTo(0.008, 10);
     expect(result.tasks[0]?.priority).toBe("p2");
+  });
+
+  it("supports legacy row where stage_2 has value but impact_2_type is empty", () => {
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.json_to_sheet([
+      {
+        active: "TRUE",
+        project: "Stores",
+        task_name: "Order edit in stores",
+        stage_1: "checkout",
+        impact_1_type: "absolute_pp",
+        impact_1_value: 2,
+        stage_2: "order",
+        impact_2_type: "",
+        impact_2_value: 4,
+        release_month: 5,
+      },
+    ]);
+
+    XLSX.utils.book_append_sheet(workbook, sheet, "Шаблон задач");
+
+    const file = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+    const result = parseTaskImportWorkbook(file, "ru");
+
+    expect(result.tasks[0]).toMatchObject({
+      stage2: "order",
+      impact2Type: "relative_percent",
+      impact2Value: 0.04,
+    });
   });
 });

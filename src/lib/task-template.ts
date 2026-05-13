@@ -136,8 +136,57 @@ const normalizeToken = (value: string) =>
   value
     .toLowerCase()
     .trim()
-    .replace(/[\s./\\()%+-]+/g, "")
+    .replace(/[\s./\\()%+\-_:|>→]+/g, "")
     .replace(/_/g, "");
+
+const STAGE_ALIASES: Record<AdjustableStage, string[]> = {
+  catalog: ["cat", "кат", "sessionscatalog", "sessionstocatalog", "трафиккаталог"],
+  pdp: [
+    "productcard",
+    "productdetailpage",
+    "card",
+    "карточка",
+    "catalogpdp",
+    "catalogtopdp",
+    "каталогpdp",
+    "каталогкарточка",
+  ],
+  atc: [
+    "addtocart",
+    "add2cart",
+    "cart",
+    "basket",
+    "корзина",
+    "pdpaddtocart",
+    "pdptoaddtocart",
+    "pdpatc",
+    "pdptoatc",
+    "карточкакорзина",
+  ],
+  checkout: [
+    "co",
+    "cartcheckout",
+    "carttocheckout",
+    "atccheckout",
+    "atctocheckout",
+    "корзиначекаут",
+  ],
+  order: [
+    "ord",
+    "orders",
+    "grossorders",
+    "ordercr",
+    "заказы",
+    "заказcr",
+    "checkoutorder",
+    "checkouttoorder",
+    "чекаутзаказ",
+  ],
+  traffic: ["trf", "sessions", "session", "visits", "visit", "сессии", "визиты"],
+  atv: ["aov", "averageordervalue", "averagecheck", "avgcheck", "среднийчек"],
+  buyout: ["bo", "buyoutpercent", "buyoutpct", "выкуп", "процентвыкупа", "выкупpercent"],
+  upt: ["unitspertransaction", "unitsperorder", "itemsperorder"],
+};
 
 const formatTemplateImpactValue = (type: ImpactType | undefined, value: number) => {
   if (type === "relative_percent" || type === "absolute_pp") {
@@ -204,6 +253,7 @@ const parseStage = (value: string) => {
   for (const stage of STAGE_CODE_LIST) {
     if (
       normalizeToken(stage) === normalized ||
+      STAGE_ALIASES[stage].includes(normalized) ||
       normalizeToken(STAGE_LABELS.ru[stage]) === normalized ||
       normalizeToken(STAGE_LABELS.en[stage]) === normalized
     ) {
@@ -703,13 +753,13 @@ export const parseTaskImportWorkbook = (
     }
 
     const stage1 = parseStage(stage1Raw);
-    if (stage1 === null || stage1 === undefined) {
+    if (stage1 === null) {
       errors.push(locale === "ru" ? `Строка ${lineNumber}: неверный stage_1.` : `Row ${lineNumber}: invalid stage_1.`);
       return;
     }
 
     const impact1Type = parseImpactType(impact1TypeRaw);
-    if (impact1Type === null || impact1Type === undefined) {
+    if (impact1Type === null || (stage1 && impact1Type === undefined)) {
       errors.push(
         locale === "ru"
           ? `Строка ${lineNumber}: неверный impact_1_type.`
@@ -727,6 +777,13 @@ export const parseTaskImportWorkbook = (
       );
       return;
     }
+    const rawImpact1Number = parseDecimal(impact1ValueRaw.replace("%", ""));
+    const hasPrimaryImpact = Math.abs(impact1Value) > Number.EPSILON;
+    const hasRawPrimaryImpact = rawImpact1Number !== null && Math.abs(rawImpact1Number) > Number.EPSILON;
+    if (!stage1 && (hasPrimaryImpact || hasRawPrimaryImpact)) {
+      errors.push(locale === "ru" ? `Строка ${lineNumber}: неверный stage_1.` : `Row ${lineNumber}: invalid stage_1.`);
+      return;
+    }
 
     const stage2 = parseStage(stage2Raw);
     if (stage2 === null) {
@@ -734,7 +791,11 @@ export const parseTaskImportWorkbook = (
       return;
     }
 
-    const impact2Type = parseImpactType(impact2TypeRaw);
+    const legacyImpact2TypeRaw =
+      stage2Raw.trim() && !impact2TypeRaw.trim() && impact2ValueRaw.trim()
+        ? "relative_percent"
+        : impact2TypeRaw;
+    const impact2Type = parseImpactType(legacyImpact2TypeRaw);
     if (impact2Type === null) {
       errors.push(
         locale === "ru"
@@ -812,8 +873,8 @@ export const parseTaskImportWorkbook = (
         confidence: normalizeConfidence(cellValue(row, columnMap, "confidence")) ?? "medium",
         effort: normalizeEffort(cellValue(row, columnMap, "effort")) ?? "m",
         stage1,
-        impact1Type,
-        impact1Value,
+        impact1Type: stage1 ? impact1Type : undefined,
+        impact1Value: stage1 ? impact1Value : 0,
         stage2: stage2 ?? undefined,
         impact2Type: impact2Type ?? undefined,
         impact2Value: impact2Type ? impact2Value ?? 0 : 0,
