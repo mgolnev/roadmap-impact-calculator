@@ -353,7 +353,6 @@ export default function HomePage() {
             event: "*",
             schema: "public",
             table: "roadmap_state",
-            filter: "id=eq.1",
           },
           (ev) => {
             const row = ev.new as { payload?: Partial<SharedRoadmapPayload>; updated_at?: string } | null;
@@ -424,9 +423,11 @@ export default function HomePage() {
 
     const calc = useCalculatorStore.getState();
     const pm = usePMStore.getState();
+    let serverRow: RoadmapStateRow | null = null;
     let serverPayload: Partial<SharedRoadmapPayload> | null = null;
     try {
-      serverPayload = (await fetchRoadmapStateRow(supabase))?.payload ?? null;
+      serverRow = await fetchRoadmapStateRow(supabase);
+      serverPayload = serverRow?.payload ?? null;
     } catch (error) {
       setSharedStatus(
         (calc.locale === "ru" ? "Ошибка сохранения: " : "Failed to save: ") +
@@ -451,8 +452,10 @@ export default function HomePage() {
       _writeMode: "full",
     };
 
-    const updated = { id: 1, payload, updated_at: new Date().toISOString() };
-    const { error } = await supabase.from("roadmap_state").upsert(updated, { onConflict: "id" });
+    const updated = { payload, updated_at: new Date().toISOString() };
+    const { error } = serverRow?.id != null
+      ? await supabase.from("roadmap_state").update(updated).eq("id", serverRow.id)
+      : await supabase.from("roadmap_state").insert(updated);
 
     if (error) {
       setSharedStatus(

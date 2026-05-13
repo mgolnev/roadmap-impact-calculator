@@ -96,8 +96,10 @@ export async function persistIdeasOnlyToSupabase(ideas: Task[]): Promise<{ ok: b
     };
   }
 
-  const updated = { id: 1, payload: nextPayload, updated_at: new Date().toISOString() };
-  const { error } = await supabase.from("roadmap_state").upsert(updated, { onConflict: "id" });
+  const updated = { payload: nextPayload, updated_at: new Date().toISOString() };
+  const { error } = existingRow?.id != null
+    ? await supabase.from("roadmap_state").update(updated).eq("id", existingRow.id)
+    : await supabase.from("roadmap_state").insert(updated);
 
   if (error) return { ok: false, error: formatSupabaseError(error) };
   return { ok: true };
