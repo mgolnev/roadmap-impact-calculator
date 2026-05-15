@@ -471,7 +471,10 @@ export const useCalculatorStore = create<StoreState>()(
           const idea = state.ideas.find((i) => i.id === id);
           if (!idea) return state;
           const targetPlan = state.yearPlans[targetYear] ?? emptyYearPlan();
-          if (targetPlan.tasks.some((t) => t.originTaskId === idea.id)) return state;
+          const ideasNext = state.ideas.filter((i) => i.id !== id);
+          if (targetPlan.tasks.some((t) => t.originTaskId === idea.id)) {
+            return { ideas: ideasNext };
+          }
           const promoted = {
             ...buildPromotedRoadmapTaskFromIdea(idea),
             id: `task-${targetYear}-${idea.id}-${Date.now()}`,
@@ -483,6 +486,7 @@ export const useCalculatorStore = create<StoreState>()(
             [targetYear]: { ...targetPlan, tasks },
           };
           return {
+            ideas: ideasNext,
             yearPlans: nextYearPlans,
             ...(state.activeYear === targetYear ? { tasks } : {}),
           };
@@ -493,7 +497,10 @@ export const useCalculatorStore = create<StoreState>()(
           const idea = state.ideas.find((i) => i.id === id);
           if (!idea) return state;
           const targetPlan = state.yearPlans[targetYear] ?? emptyYearPlan();
-          if (targetPlan.tasks.some((t) => t.originTaskId === idea.id)) return state;
+          const ideasNext = state.ideas.filter((i) => i.id !== id);
+          if (targetPlan.tasks.some((t) => t.originTaskId === idea.id)) {
+            return { ideas: ideasNext };
+          }
           const promoted = {
             ...buildPromotedRoadmapTaskFromIdea(idea),
             id: `task-${targetYear}-${idea.id}-${Date.now()}`,
@@ -505,6 +512,7 @@ export const useCalculatorStore = create<StoreState>()(
             [targetYear]: { ...targetPlan, tasks },
           };
           return {
+            ideas: ideasNext,
             yearPlans: nextYearPlans,
             ...(state.activeYear === targetYear ? { tasks } : {}),
           };
