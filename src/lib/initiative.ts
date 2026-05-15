@@ -1,4 +1,8 @@
 import {
+  IdeaCandidateFlag,
+  IdeaFirstPassVerdict,
+  IdeaRelevance,
+  IdeaTriageSizing,
   InitiativeConfidence,
   InitiativeEffort,
   InitiativeImpactCategory,
@@ -68,6 +72,59 @@ export const normalizeImpactCategory = (raw: string): InitiativeImpactCategory |
   return allowed.includes(t as InitiativeImpactCategory) ? (t as InitiativeImpactCategory) : undefined;
 };
 
+const TRIAGE_SET = new Set<IdeaTriageSizing>(["unset", "needs_estimate", "minor_fix"]);
+const RELEVANCE_SET = new Set<IdeaRelevance>(["unset", "current", "stale", "unclear"]);
+const CANDIDATE_SET = new Set<IdeaCandidateFlag>(["unset", "yes", "no"]);
+const FIRST_PASS_SET = new Set<IdeaFirstPassVerdict>(["not_seen", "parking", "candidate", "trash"]);
+
+function normalizeIdeaTriageSizingLegacy(raw: string | IdeaTriageSizing | undefined): IdeaTriageSizing {
+  if (raw && TRIAGE_SET.has(raw as IdeaTriageSizing)) return raw as IdeaTriageSizing;
+  return "unset";
+}
+
+function normalizeIdeaRelevanceLegacy(raw: string | IdeaRelevance | undefined): IdeaRelevance {
+  if (raw && RELEVANCE_SET.has(raw as IdeaRelevance)) return raw as IdeaRelevance;
+  return "unset";
+}
+
+function normalizeIdeaCandidateFlagLegacy(
+  raw: string | IdeaCandidateFlag | undefined,
+): IdeaCandidateFlag {
+  if (raw && CANDIDATE_SET.has(raw as IdeaCandidateFlag)) return raw as IdeaCandidateFlag;
+  return "unset";
+}
+
+/** Миграция старых трёх полей → один вердикт (до первого сохранения с `ideaFirstPass`). */
+export function migrateLegacyFirstPass(task: Task): IdeaFirstPassVerdict {
+  const rel = normalizeIdeaRelevanceLegacy(task.ideaRelevance);
+  const cand = normalizeIdeaCandidateFlagLegacy(task.ideaCandidateFlag);
+  const tri = normalizeIdeaTriageSizingLegacy(task.ideaTriageSizing);
+  if (rel === "stale") return "trash";
+  if (cand === "yes") return "candidate";
+  if (rel === "current" || rel === "unclear" || tri !== "unset") return "parking";
+  return "not_seen";
+}
+
+export function normalizeIdeaFirstPass(raw: string | IdeaFirstPassVerdict | undefined): IdeaFirstPassVerdict {
+  if (raw && FIRST_PASS_SET.has(raw as IdeaFirstPassVerdict)) return raw as IdeaFirstPassVerdict;
+  return "not_seen";
+}
+
+/** Текущий вердикт первого прохода: явное поле или миграция с прежних полей. */
+export function getIdeaFirstPass(task: Task): IdeaFirstPassVerdict {
+  const v = task.ideaFirstPass;
+  if (v && FIRST_PASS_SET.has(v)) return v;
+  return migrateLegacyFirstPass(task);
+}
+
+/** Порядок в списке: не смотрел → кандидат → парковка → мусор. */
+export const IDEA_FIRST_PASS_SORT_ORDER: Record<IdeaFirstPassVerdict, number> = {
+  not_seen: 0,
+  candidate: 1,
+  parking: 2,
+  trash: 3,
+};
+
 export const withInitiativeDefaults = (task: Task): Task => {
   const releaseMonth = task.releaseMonth ?? 1;
   return {
@@ -80,6 +137,18 @@ export const withInitiativeDefaults = (task: Task): Task => {
     confidence: task.confidence ?? "medium",
     effort: task.effort ?? "m",
     impactCategory: task.impactCategory ?? "conversion",
+    ...(task.ideaFirstPass !== undefined
+      ? { ideaFirstPass: normalizeIdeaFirstPass(task.ideaFirstPass) }
+      : {}),
+    ...(task.ideaTriageSizing !== undefined
+      ? { ideaTriageSizing: normalizeIdeaTriageSizingLegacy(task.ideaTriageSizing) }
+      : {}),
+    ...(task.ideaRelevance !== undefined
+      ? { ideaRelevance: normalizeIdeaRelevanceLegacy(task.ideaRelevance) }
+      : {}),
+    ...(task.ideaCandidateFlag !== undefined
+      ? { ideaCandidateFlag: normalizeIdeaCandidateFlagLegacy(task.ideaCandidateFlag) }
+      : {}),
   };
 };
 
@@ -99,13 +168,20 @@ export function mergeIdeaProblemAndDescription(
  * попадает в «Комментарий / гипотеза»; problemStatement и description очищаются.
  */
 export function buildPromotedRoadmapTaskFromIdea(idea: Task): Task {
+  const {
+    ideaFirstPass: _fp,
+    ideaTriageSizing: _triage,
+    ideaRelevance: _rel,
+    ideaCandidateFlag: _cand,
+    ...ideaRest
+  } = idea;
   const fromBody = mergeIdeaProblemAndDescription(idea.problemStatement, idea.description);
   const existingComment = idea.comment?.trim() ?? "";
   const combinedComment =
     existingComment && fromBody ? `${existingComment}\n\n${fromBody}` : existingComment || fromBody;
 
   return {
-    ...idea,
+    ...ideaRest,
     initiativeStatus: "planned",
     active: true,
     comment: combinedComment,
@@ -129,10 +205,19 @@ export function buildDemotedIdeaTaskFromRoadmapTask(task: Task): Task {
       ? `${fromComment}\n\n${fromProblemFields}`
       : fromComment || fromProblemFields;
 
+  const {
+    ideaTriageSizing: _ts,
+    ideaRelevance: _rel,
+    ideaCandidateFlag: _cf,
+    ideaFirstPass: _fp,
+    ...taskRest
+  } = task;
+
   return {
-    ...task,
+    ...taskRest,
     problemStatement,
     description: "",
     comment: "",
+    ideaFirstPass: "not_seen",
   };
 }

@@ -1202,6 +1202,19 @@ a.primary-button:visited {
   background: var(--surface-muted);
 }
 
+.pre-backlog-card[data-first-pass="parking"] {
+  box-shadow: inset 3px 0 0 #c9a227;
+}
+
+.pre-backlog-card[data-first-pass="candidate"] {
+  box-shadow: inset 3px 0 0 var(--accent, #3b6bff);
+}
+
+.pre-backlog-card[data-first-pass="trash"] {
+  box-shadow: inset 3px 0 0 #9ca3af;
+  opacity: 0.95;
+}
+
 .pre-backlog-card__grid {
   display: flex;
   flex-direction: column;
@@ -1676,7 +1689,9 @@ a.primary-button:visited {
 }
 
 .pre-backlog-filters__secondary {
-  grid-template-columns: minmax(220px, 1.2fr) fit-content(240px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   align-items: center;
 }
 
@@ -1686,6 +1701,53 @@ a.primary-button:visited {
   margin: 4px 0 0;
   max-width: 720px;
   line-height: 1.45;
+}
+
+.pre-backlog-list-hint--triage {
+  margin-top: 2px;
+  opacity: 0.95;
+}
+
+.pre-backlog-row[data-first-pass="parking"] {
+  box-shadow:
+    inset 3px 0 0 #c9a227,
+    0 1px 3px rgba(18, 32, 60, 0.045);
+}
+
+.pre-backlog-row[data-first-pass="candidate"] {
+  box-shadow:
+    inset 3px 0 0 var(--accent, #3b6bff),
+    0 1px 3px rgba(18, 32, 60, 0.045);
+}
+
+.pre-backlog-row[data-first-pass="trash"] {
+  box-shadow:
+    inset 3px 0 0 #9ca3af,
+    0 1px 3px rgba(18, 32, 60, 0.045);
+}
+
+.pre-backlog-first-pass-select {
+  flex: 1 1 200px;
+  min-width: min(200px, 100%);
+  max-width: 280px;
+  width: auto;
+}
+
+.pre-backlog-row[data-first-pass="trash"] .pre-backlog-row__title,
+.pre-backlog-row[data-first-pass="trash"] .pre-backlog-row__summary {
+  text-decoration: line-through;
+  opacity: 0.68;
+}
+
+.pre-backlog-row__badge--candidate {
+  background: rgba(59, 107, 255, 0.12);
+  border-color: rgba(59, 107, 255, 0.35);
+  color: var(--accent, #3b6bff);
+}
+
+.pre-backlog-card[data-first-pass="trash"] .pre-backlog-compact-field--task-full input {
+  text-decoration: line-through;
+  opacity: 0.72;
 }
 
 .pre-backlog-saved-heading {

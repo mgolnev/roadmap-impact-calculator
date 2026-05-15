@@ -14,7 +14,11 @@ import {
   INITIATIVE_STATUS_LABELS,
 } from "@/lib/i18n";
 import { getTaskValueMetrics } from "@/lib/calculations";
-import { PRE_BACKLOG_STATUSES } from "@/lib/initiative";
+import {
+  getIdeaFirstPass,
+  IDEA_FIRST_PASS_SORT_ORDER,
+  PRE_BACKLOG_STATUSES,
+} from "@/lib/initiative";
 import { effectiveReleaseMonth } from "@/lib/timeline";
 import {
   AdjustableStage,
@@ -23,6 +27,7 @@ import {
   InitiativeConfidence,
   InitiativeEffort,
   InitiativeImpactCategory,
+  IdeaFirstPassVerdict,
   InitiativeStatus,
   Locale,
   PlanYear,
@@ -34,6 +39,9 @@ import { normalizeImpactType, normalizeStage, PLAN_YEARS, useCalculatorStore } f
 import { EditableImpactInput } from "./TasksTable";
 
 type IdeaSortMode = "none" | "standalone_desc" | "standalone_asc";
+
+/** Фильтр первого прохода; `active_queue` — всё кроме мусора. */
+type IdeaFirstPassFilter = IdeaFirstPassVerdict | "" | "active_queue";
 
 const SHORT_IMPACT_TYPE_LABELS: Record<Locale, Record<ImpactType, string>> = {
   ru: { relative_percent: "%", absolute_pp: "п.п.", absolute_value: "abs" },
@@ -55,6 +63,7 @@ type IdeaDraft = {
   impact2Type: ImpactType | undefined;
   impact2Value: number;
   releaseMonth: number;
+  ideaFirstPass: IdeaFirstPassVerdict;
 };
 
 const initialDraft = (locale: Locale): IdeaDraft => ({
@@ -72,6 +81,7 @@ const initialDraft = (locale: Locale): IdeaDraft => ({
   impact2Type: undefined,
   impact2Value: 0,
   releaseMonth: 1,
+  ideaFirstPass: "not_seen",
 });
 
 /** Объединение «проблема» и «описание» для отображения/редактирования одним полем. */
@@ -85,7 +95,9 @@ function mergeIdeaProblemBody(problemStatement: string | undefined, description:
 /** При открытии редактора идей: вся формулировка в problemStatement, description очищается. */
 function normalizeIdeaTaskForEditor(task: Task): Task {
   const merged = mergeIdeaProblemBody(task.problemStatement, task.description);
-  return { ...task, problemStatement: merged, description: "" };
+  const fp = getIdeaFirstPass(task);
+  const { ideaTriageSizing: _ts, ideaRelevance: _rel, ideaCandidateFlag: _cf, ...rest } = task;
+  return { ...rest, problemStatement: merged, description: "", ideaFirstPass: fp };
 }
 
 /** Сжатый текст для свёрнутой карточки: сначала формулировка проблемы, иначе описание. */
@@ -137,6 +149,7 @@ const draftToTask = (draft: IdeaDraft, locale: Locale): Task => ({
   devCommittedReleaseMonth: draft.releaseMonth,
   active: true,
   comment: "",
+  ideaFirstPass: draft.ideaFirstPass,
 });
 
 /** Стабильный id для live-превью потенциала в форме «Новая идея» (не совпадает с реальными id). */
@@ -164,6 +177,7 @@ function draftToPreviewTask(draft: IdeaDraft, locale: Locale): Task {
     devCommittedReleaseMonth: draft.releaseMonth,
     active: true,
     comment: "",
+    ideaFirstPass: draft.ideaFirstPass,
   };
 }
 
@@ -280,6 +294,7 @@ export function PreBacklogPanel({
   const [filtersToastVisible, setFiltersToastVisible] = useState(false);
   const [roadmapTransferToast, setRoadmapTransferToast] = useState<string | null>(null);
   const [ideaSortMode, setIdeaSortMode] = useState<IdeaSortMode>("none");
+  const [firstPassFilter, setFirstPassFilter] = useState<IdeaFirstPassFilter>("");
   const [newIdeaFormOpen, setNewIdeaFormOpen] = useState(false);
 
   const projectOptions = useMemo(
@@ -299,31 +314,61 @@ export function PreBacklogPanel({
       const haystack =
         `${projectName} ${task.taskName} ${task.comment} ${task.problemStatement} ${task.description}`.toLowerCase();
       const matchesSearch = !query || haystack.includes(query);
+      const fp = getIdeaFirstPass(task);
+      const matchesFirstPass =
+        !firstPassFilter ||
+        (firstPassFilter === "active_queue" ? fp !== "trash" : fp === firstPassFilter);
 
-      return matchesProject && matchesStage && matchesMonth && matchesSearch;
+      return matchesProject && matchesStage && matchesMonth && matchesSearch && matchesFirstPass;
     });
-  }, [initiatives, monthFilter, projectFilter, searchValue, stageFilter, text.noProject, timelineMode]);
+  }, [
+    initiatives,
+    firstPassFilter,
+    monthFilter,
+    projectFilter,
+    searchValue,
+    stageFilter,
+    text.noProject,
+    timelineMode,
+  ]);
 
   const hasActiveIdeaFilters = !!(
     searchValue.trim() ||
     projectFilter ||
     stageFilter ||
-    monthFilter
+    monthFilter ||
+    firstPassFilter
   );
 
   const sortedFilteredInitiatives = useMemo(() => {
     const list = [...filteredInitiatives];
     const standalone = (id: string) => taskMetrics[id]?.standaloneBase ?? 0;
+    const firstPassRank = (task: Task) => IDEA_FIRST_PASS_SORT_ORDER[getIdeaFirstPass(task)];
+
+    const cmpQueue = (a: Task, b: Task) => {
+      const d = firstPassRank(a) - firstPassRank(b);
+      return d !== 0 ? d : a.id.localeCompare(b.id);
+    };
+
+    const cmpStandalone = (desc: boolean) => (a: Task, b: Task) => {
+      const d = desc ? standalone(b.id) - standalone(a.id) : standalone(a.id) - standalone(b.id);
+      return d !== 0 ? d : a.id.localeCompare(b.id);
+    };
+
     if (ideaSortMode === "standalone_desc") {
       list.sort((a, b) => {
-        const d = standalone(b.id) - standalone(a.id);
-        return d !== 0 ? d : a.id.localeCompare(b.id);
+        const q = cmpQueue(a, b);
+        if (q !== 0) return q;
+        return cmpStandalone(true)(a, b);
       });
     } else if (ideaSortMode === "standalone_asc") {
       list.sort((a, b) => {
-        const d = standalone(a.id) - standalone(b.id);
-        return d !== 0 ? d : a.id.localeCompare(b.id);
+        const q = cmpQueue(a, b);
+        if (q !== 0) return q;
+        return cmpStandalone(false)(a, b);
       });
+    } else {
+      list.sort(cmpQueue);
     }
     return list;
   }, [filteredInitiatives, ideaSortMode, taskMetrics]);
@@ -403,7 +448,14 @@ export function PreBacklogPanel({
   }, [closeIdeaEditor, ideaEditDraft, initiatives, onUpdate]);
 
   const updateIdeaEditDraft = useCallback(<K extends keyof Task>(id: string, key: K, value: Task[K]) => {
-    setIdeaEditDraft((d) => (d && d.id === id ? { ...d, [key]: value } : d));
+    setIdeaEditDraft((d) => {
+      if (!d || d.id !== id) return d;
+      if (key === "ideaFirstPass") {
+        const { ideaTriageSizing: _ts, ideaRelevance: _rel, ideaCandidateFlag: _cf, ...rest } = d;
+        return { ...rest, ideaFirstPass: value as IdeaFirstPassVerdict };
+      }
+      return { ...d, [key]: value };
+    });
   }, []);
 
   const updateIdeaMergedProblemBody = useCallback((id: string, value: string) => {
@@ -662,6 +714,24 @@ export function PreBacklogPanel({
                 </select>
               </label>
               <label className="pre-backlog-compact-field">
+                <span>{text.ideaFirstPassFieldLabel}</span>
+                <select
+                  className="cell-input"
+                  value={draft.ideaFirstPass}
+                  onChange={(e) =>
+                    setDraft((d) => ({
+                      ...d,
+                      ideaFirstPass: e.target.value as IdeaFirstPassVerdict,
+                    }))
+                  }
+                >
+                  <option value="not_seen">{text.ideaFirstPassNotSeen}</option>
+                  <option value="parking">{text.ideaFirstPassParking}</option>
+                  <option value="candidate">{text.ideaFirstPassCandidate}</option>
+                  <option value="trash">{text.ideaFirstPassTrash}</option>
+                </select>
+              </label>
+              <label className="pre-backlog-compact-field">
                 <span>{text.effectStart}</span>
                 <select
                   className="cell-input"
@@ -694,7 +764,10 @@ export function PreBacklogPanel({
 
       <h3 className="pre-backlog-saved-heading">{text.preBacklogSavedListTitle}</h3>
       {initiatives.length > 0 ? (
-        <p className="pre-backlog-list-hint">{text.preBacklogEditHint}</p>
+        <>
+          <p className="pre-backlog-list-hint">{text.preBacklogEditHint}</p>
+          <p className="pre-backlog-list-hint pre-backlog-list-hint--triage">{text.preBacklogTriageSortHint}</p>
+        </>
       ) : null}
 
       {initiatives.length === 0 ? (
@@ -750,6 +823,21 @@ export function PreBacklogPanel({
             </div>
             <div className="filters-row filters-row-secondary pre-backlog-filters__secondary">
               <select
+                className={`cell-input ${firstPassFilter ? "filter-active" : ""}`}
+                value={firstPassFilter}
+                onChange={(event) =>
+                  setFirstPassFilter((event.target.value || "") as IdeaFirstPassFilter)
+                }
+                aria-label={text.ideaFirstPassFilterAriaLabel}
+              >
+                <option value="">{text.preBacklogFilterAllFirstPass}</option>
+                <option value="active_queue">{text.preBacklogFilterActiveQueue}</option>
+                <option value="not_seen">{text.ideaFirstPassNotSeen}</option>
+                <option value="candidate">{text.ideaFirstPassCandidate}</option>
+                <option value="parking">{text.ideaFirstPassParking}</option>
+                <option value="trash">{text.ideaFirstPassTrash}</option>
+              </select>
+              <select
                 className={`cell-input ${ideaSortMode !== "none" ? "filter-active" : ""}`}
                 value={ideaSortMode}
                 onChange={(event) => setIdeaSortMode(event.target.value as IdeaSortMode)}
@@ -767,6 +855,7 @@ export function PreBacklogPanel({
                   setProjectFilter("");
                   setMonthFilter("");
                   setStageFilter("");
+                  setFirstPassFilter("");
                 }}
               >
                 {text.clearFilters}
@@ -784,8 +873,13 @@ export function PreBacklogPanel({
             const summaryText = ideaCollapsedSummaryText(task);
 
             if (!expanded) {
+              const fp = getIdeaFirstPass(task);
               return (
-                <div key={task.id} className="pre-backlog-row">
+                <div
+                  key={task.id}
+                  className="pre-backlog-row"
+                  data-first-pass={fp}
+                >
                   <div
                     className="pre-backlog-row__hit"
                     role="button"
@@ -799,6 +893,11 @@ export function PreBacklogPanel({
                       <div className="pre-backlog-row__chip-row">
                         <span className="pre-backlog-row__meta">{task.project}</span>
                         <span className="pre-backlog-row__badge">{statusLabels[task.initiativeStatus]}</span>
+                        {fp === "candidate" ? (
+                          <span className="pre-backlog-row__badge pre-backlog-row__badge--candidate">
+                            {text.ideaFirstPassBadgeCandidate}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                     {summaryText ? (
@@ -817,6 +916,22 @@ export function PreBacklogPanel({
                     </div>
                   </div>
                   <div className="pre-backlog-row__actions pre-backlog-row__actions--collapsed">
+                    <select
+                      className="cell-input pre-backlog-first-pass-select"
+                      aria-label={text.ideaFirstPassAriaLabel}
+                      value={fp}
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      onChange={(e) =>
+                        onUpdate(task.id, "ideaFirstPass", e.target.value as IdeaFirstPassVerdict)
+                      }
+                    >
+                      <option value="not_seen">{text.ideaFirstPassNotSeen}</option>
+                      <option value="parking">{text.ideaFirstPassParking}</option>
+                      <option value="candidate">{text.ideaFirstPassCandidate}</option>
+                      <option value="trash">{text.ideaFirstPassTrash}</option>
+                    </select>
                     <button
                       className="ghost-button"
                       type="button"
@@ -848,7 +963,11 @@ export function PreBacklogPanel({
               ideaEditDraft && ideaEditDraft.id === task.id ? ideaEditDraft : { ...task };
 
             return (
-              <article key={task.id} className="pre-backlog-card pre-backlog-card--expanded">
+              <article
+                key={task.id}
+                className="pre-backlog-card pre-backlog-card--expanded"
+                data-first-pass={getIdeaFirstPass(t)}
+              >
                 <div className="pre-backlog-card__grid">
                   <div className="pre-backlog-compact-split">
                     <div className="pre-backlog-compact-area pre-backlog-compact-area--task">
@@ -989,6 +1108,25 @@ export function PreBacklogPanel({
                                 {effortLabels[key]}
                               </option>
                             ))}
+                          </select>
+                        </label>
+                        <label className="pre-backlog-compact-field">
+                          <span>{text.ideaFirstPassFieldLabel}</span>
+                          <select
+                            className="cell-input"
+                            value={getIdeaFirstPass(t)}
+                            onChange={(e) =>
+                              updateIdeaEditDraft(
+                                t.id,
+                                "ideaFirstPass",
+                                e.target.value as IdeaFirstPassVerdict,
+                              )
+                            }
+                          >
+                            <option value="not_seen">{text.ideaFirstPassNotSeen}</option>
+                            <option value="parking">{text.ideaFirstPassParking}</option>
+                            <option value="candidate">{text.ideaFirstPassCandidate}</option>
+                            <option value="trash">{text.ideaFirstPassTrash}</option>
                           </select>
                         </label>
                         <label className="pre-backlog-compact-field">

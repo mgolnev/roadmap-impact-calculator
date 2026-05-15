@@ -27,6 +27,20 @@ export type InitiativeImpactCategory =
   | "retention"
   | "net_cr_cancellations";
 
+/**
+ * Первый проход pre-backlog: один вердикт отсева (скорость просмотра сотен задач).
+ */
+export type IdeaFirstPassVerdict = "not_seen" | "parking" | "candidate" | "trash";
+
+/** @deprecated оставлено для миграции из persist; используйте `ideaFirstPass`. */
+export type IdeaTriageSizing = "unset" | "needs_estimate" | "minor_fix";
+
+/** @deprecated оставлено для миграции из persist; используйте `ideaFirstPass`. */
+export type IdeaRelevance = "unset" | "current" | "stale" | "unclear";
+
+/** @deprecated оставлено для миграции из persist; используйте `ideaFirstPass`. */
+export type IdeaCandidateFlag = "unset" | "yes" | "no";
+
 export type BaselineInput = {
   sessions: number;
   catalogCr: number;
@@ -100,6 +114,14 @@ export type Task = {
   devCommittedReleaseMonth: number;
   active: boolean;
   comment: string;
+  /** Pre-backlog: первый проход / отсев (одна отметка). По умолчанию при отсутствии — `not_seen`. */
+  ideaFirstPass?: IdeaFirstPassVerdict;
+  /** @deprecated миграция → `ideaFirstPass`. */
+  ideaTriageSizing?: IdeaTriageSizing;
+  /** @deprecated миграция → `ideaFirstPass`. */
+  ideaRelevance?: IdeaRelevance;
+  /** @deprecated миграция → `ideaFirstPass`. */
+  ideaCandidateFlag?: IdeaCandidateFlag;
 };
 
 export type MonthlyRow = {

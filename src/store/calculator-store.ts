@@ -396,14 +396,19 @@ export const useCalculatorStore = create<StoreState>()(
         }),
       updateIdea: (id, key, value) =>
         set((state) => ({
-          ideas: state.ideas.map((idea) =>
-            idea.id === id
-              ? {
-                  ...idea,
-                  [key]: value,
-                }
-              : idea,
-          ),
+          ideas: state.ideas.map((idea) => {
+            if (idea.id !== id) return idea;
+            if (key === "ideaFirstPass") {
+              const {
+                ideaTriageSizing: _ts,
+                ideaRelevance: _rel,
+                ideaCandidateFlag: _cf,
+                ...rest
+              } = idea;
+              return { ...rest, ideaFirstPass: value as typeof idea.ideaFirstPass };
+            }
+            return { ...idea, [key]: value };
+          }),
         })),
       setTasks: (tasks) =>
         set((state) => {

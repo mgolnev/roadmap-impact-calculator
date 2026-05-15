@@ -18,6 +18,7 @@ import {
   INITIATIVE_EFFORT_LABELS,
   INITIATIVE_STATUS_LABELS,
 } from "@/lib/i18n";
+import { getIdeaFirstPass } from "@/lib/initiative";
 import { buildTopProjectRows } from "@/lib/top-projects";
 import { BaselineInput, ImpactType, Locale, PlanYear, Task, TaskValueMetrics, TimelineMode } from "@/lib/types";
 
@@ -360,6 +361,17 @@ export const buildRoadmapImpactWorkbook = ({
     [taskCol.comment]: task.comment,
   });
 
+  const ideaFirstPassExportHeader =
+    locale === "ru" ? "Первый проход (отсев)" : "First pass (cull)";
+  const ideaFirstPassCell = (task: Task) => {
+    const v = getIdeaFirstPass(task);
+    const labels = getText(locale);
+    if (v === "parking") return labels.ideaFirstPassExportParking;
+    if (v === "candidate") return labels.ideaFirstPassExportCandidate;
+    if (v === "trash") return labels.ideaFirstPassExportTrash;
+    return labels.ideaFirstPassExportNotSeen;
+  };
+
   const tasksSheet = XLSX.utils.json_to_sheet(tasks.map(rowFromTask));
 
   XLSX.utils.book_append_sheet(workbook, summarySheet, locale === "ru" ? "Сводка" : "Summary");
@@ -369,7 +381,12 @@ export const buildRoadmapImpactWorkbook = ({
   XLSX.utils.book_append_sheet(workbook, tasksSheet, locale === "ru" ? "Задачи" : "Tasks");
 
   if (ideas.length > 0) {
-    const ideasSheet = XLSX.utils.json_to_sheet(ideas.map(rowFromTask));
+    const ideasSheet = XLSX.utils.json_to_sheet(
+      ideas.map((task) => ({
+        ...rowFromTask(task),
+        [ideaFirstPassExportHeader]: ideaFirstPassCell(task),
+      })),
+    );
     XLSX.utils.book_append_sheet(workbook, ideasSheet, locale === "ru" ? "Идеи (pre-backlog)" : "Ideas (pre-backlog)");
   }
 
