@@ -22,7 +22,7 @@ import {
   ImpactType,
   InitiativeStatus,
   Locale,
-  Priority,
+  PlanYear,
   Task,
   TaskValueMetrics,
   TimelineMode,
@@ -38,6 +38,7 @@ import {
   normalizeImpactType,
   normalizePriority,
   normalizeStage,
+  PLAN_YEARS,
   useCalculatorStore,
 } from "@/store/calculator-store";
 
@@ -313,6 +314,10 @@ export function TasksTable({
   const roadmapTableSort = useCalculatorStore((s) => s.roadmapTableSort);
   const toggleRoadmapTableSort = useCalculatorStore((s) => s.toggleRoadmapTableSort);
   const resetRoadmapTableSort = useCalculatorStore((s) => s.resetRoadmapTableSort);
+  const activeYear = useCalculatorStore((s) => s.activeYear);
+  const copyRoadmapTaskToYear = useCalculatorStore((s) => s.copyRoadmapTaskToYear);
+  const moveRoadmapTaskToYear = useCalculatorStore((s) => s.moveRoadmapTaskToYear);
+  const moveRoadmapTaskToIdeas = useCalculatorStore((s) => s.moveRoadmapTaskToIdeas);
   const [searchValue, setSearchValue] = useState("");
   const setProjectFilter = onProjectFilterChange;
   const [monthFilter, setMonthFilter] = useState<number | "">("");
@@ -358,6 +363,7 @@ export function TasksTable({
   const hasActiveFilters = !!(searchValue.trim() || projectFilter || stageFilter || monthFilter);
   const [toastVisible, setToastVisible] = useState(false);
   const [movedToIdeasToast, setMovedToIdeasToast] = useState<string | null>(null);
+  const [yearTransferToast, setYearTransferToast] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
@@ -389,6 +395,12 @@ export function TasksTable({
     const t = setTimeout(() => setMovedToIdeasToast(null), 3500);
     return () => clearTimeout(t);
   }, [movedToIdeasToast]);
+
+  useEffect(() => {
+    if (!yearTransferToast) return;
+    const t = setTimeout(() => setYearTransferToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [yearTransferToast]);
 
   return (
     <CollapsibleSection title={text.tasksTitle}>
@@ -816,6 +828,44 @@ export function TasksTable({
                   </td>
                   <td>
                     <div className="actions">
+                      {PLAN_YEARS.filter((y) => y !== activeYear).length > 0 ? (
+                        <select
+                          className="cell-input task-year-actions-select"
+                          aria-label={text.taskYearActionsTitle}
+                          value=""
+                          onChange={(event) => {
+                            const raw = event.target.value;
+                            event.target.value = "";
+                            if (!raw) return;
+                            const label = task.taskName.trim() || text.toastTaskUntitled;
+                            if (raw === "ideas") {
+                              moveRoadmapTaskToIdeas(task.id);
+                              setYearTransferToast(text.toastTaskMovedToIdeas.replace("{name}", label));
+                              return;
+                            }
+                            const [op, ys] = raw.split(":");
+                            const y = Number(ys) as PlanYear;
+                            if (op === "copy") {
+                              copyRoadmapTaskToYear(task.id, y);
+                              setYearTransferToast(text.toastTaskCopyToYear.replace("{year}", String(y)));
+                            } else if (op === "move") {
+                              moveRoadmapTaskToYear(task.id, y);
+                              setYearTransferToast(text.toastTaskMoveToYear.replace("{year}", String(y)));
+                            }
+                          }}
+                        >
+                          <option value="">{text.taskYearActionPlaceholder}</option>
+                          {PLAN_YEARS.filter((y) => y !== activeYear).flatMap((y) => [
+                            <option key={`copy-${y}`} value={`copy:${y}`}>
+                              {text.taskCopyToYear.replace("{year}", String(y))}
+                            </option>,
+                            <option key={`move-${y}`} value={`move:${y}`}>
+                              {text.taskMoveToYear.replace("{year}", String(y))}
+                            </option>,
+                          ])}
+                          <option value="ideas">{text.taskMoveToIdeas}</option>
+                        </select>
+                      ) : null}
                       <button className="ghost-button" type="button" onClick={() => onDuplicate(task.id)}>
                         {text.duplicate}
                       </button>
@@ -831,7 +881,7 @@ export function TasksTable({
           <tfoot>
             <tr>
               <td className="sticky-col sticky-col-0" />
-              <td className="sticky-col sticky-col-1" colSpan={8}>
+              <td className="sticky-col sticky-col-1" colSpan={7}>
                 {text.totalByTasks}
               </td>
               <td>{formatCurrency(filteredTasks.reduce((acc, task) => acc + (taskMetrics[task.id]?.standaloneBase ?? 0), 0))}</td>
@@ -845,7 +895,7 @@ export function TasksTable({
                   ),
                 )}
               </td>
-              <td colSpan={3}>{formatNumber(activeTasksCount)} {text.activeTasks}</td>
+              <td colSpan={4}>{formatNumber(activeTasksCount)} {text.activeTasks}</td>
             </tr>
           </tfoot>
         </table>
@@ -857,13 +907,21 @@ export function TasksTable({
       ) : null}
 
       {toastVisible ? (
-        <div className={`toast${movedToIdeasToast ? " toast--stacked" : ""}`} role="status">
+        <div
+          className={`toast${movedToIdeasToast || yearTransferToast ? " toast--stacked" : ""}`}
+          role="status"
+        >
           {text.tasksFilteredToast}
         </div>
       ) : null}
       {movedToIdeasToast ? (
         <div className="toast" role="status">
           {movedToIdeasToast}
+        </div>
+      ) : null}
+      {yearTransferToast ? (
+        <div className="toast" role="status">
+          {yearTransferToast}
         </div>
       ) : null}
     </CollapsibleSection>

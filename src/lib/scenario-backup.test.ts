@@ -5,7 +5,7 @@ import { buildScenarioBackupWorkbook, parseScenarioBackupWorkbook } from "@/lib/
 import { withInitiativeDefaults } from "@/lib/initiative";
 import { uniformSeasonalityWeights } from "@/lib/seasonality";
 import { emptyPhases, emptyPMData } from "@/store/pm-store";
-import { BaselineInput, Task, TaskPMData } from "@/lib/types";
+import { BaselineInput, Task, TaskPMData, YearPlan } from "@/lib/types";
 
 const baseline: BaselineInput = {
   sessions: 1000,
@@ -55,6 +55,7 @@ describe("scenario backup workbook", () => {
     expect(workbook.SheetNames).toEqual([
       "Сценарий",
       "База сценария",
+      "MultiYear",
       "Шаблон задач",
       "Как заполнять",
       "Справочники",
@@ -69,7 +70,8 @@ describe("scenario backup workbook", () => {
     );
 
     expect(scenarioRows[0].locale).toBe("ru");
-    expect(scenarioRows[0].version).toBe(5);
+    expect(scenarioRows[0].version).toBe(6);
+    expect(scenarioRows[0].activeYear).toBe(2026);
     expect(scenarioRows[0].trafficChangePercent).toBe(12.5);
     expect(scenarioRows[0].timelineMode).toBe("plan");
     expect(baselineRows[0].sessions).toBe(1000);
@@ -181,5 +183,65 @@ describe("scenario backup workbook", () => {
     expect(pm.jiraEpicUrl).toBe("https://jira.example/browse/ABC-1");
     expect(pm.phases.prd).toBe("done");
     expect(pm.phases.design).toBe("in_progress");
+  });
+
+  it("round-trips multi-year plans with shared ideas and year-scoped PM", () => {
+    const idea: Task = {
+      ...task,
+      id: "idea-shared",
+      taskName: "Shared idea",
+      initiativeStatus: "hypothesis",
+    };
+    const task2027: Task = {
+      ...task,
+      id: "task-2027",
+      taskName: "2027 task",
+      originYear: 2026,
+      originTaskId: task.id,
+      releaseMonth: 2,
+    };
+    const pm2026: TaskPMData = { ...emptyPMData(), startDate: "2026-03", managerGJ: "PM 2026" };
+    const pm2027: TaskPMData = { ...emptyPMData(), startDate: "2027-02", managerGJ: "PM 2027" };
+    const plan2026: YearPlan = {
+      baseline,
+      tasks: [task],
+      trafficChangePercent: 5,
+      timelineMode: "plan",
+      pmData: { [task.id]: pm2026 },
+    };
+    const plan2027: YearPlan = {
+      baseline: { ...baseline, sessions: 2000 },
+      tasks: [task2027],
+      trafficChangePercent: 10,
+      timelineMode: "dev_committed",
+      pmData: { [task2027.id]: pm2027 },
+    };
+
+    const workbook = buildScenarioBackupWorkbook({
+      locale: "ru",
+      activeYear: 2027,
+      yearPlans: { 2026: plan2026, 2027: plan2027 },
+      baseline: plan2027.baseline,
+      tasks: plan2027.tasks,
+      ideas: [idea],
+      trafficChangePercent: plan2027.trafficChangePercent,
+      timelineMode: plan2027.timelineMode,
+      pmDataByYear: { 2026: plan2026.pmData, 2027: plan2027.pmData },
+    });
+    const file = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+    const restored = parseScenarioBackupWorkbook(file, "ru");
+
+    expect(restored.activeYear).toBe(2027);
+    expect(restored.ideas[0].id).toBe("idea-shared");
+    expect(restored.yearPlans[2026].tasks[0].id).toBe("task-1");
+    expect(restored.yearPlans[2027].tasks[0]).toMatchObject({
+      id: "task-2027",
+      originYear: 2026,
+      originTaskId: "task-1",
+    });
+    expect(restored.yearPlans[2026].pmData["task-1"].managerGJ).toBe("PM 2026");
+    expect(restored.yearPlans[2027].pmData["task-2027"].managerGJ).toBe("PM 2027");
+    expect(restored.baseline.sessions).toBe(2000);
+    expect(restored.timelineMode).toBe("dev_committed");
   });
 });

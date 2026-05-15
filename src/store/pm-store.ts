@@ -2,7 +2,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import type { PMSortColumn, PMSortDirection } from "@/lib/pm-display-order";
-import { PhaseName, PhaseStatus, TaskPMData } from "@/lib/types";
+import { PhaseName, PhaseStatus, PlanYear, TaskPMData } from "@/lib/types";
+import { DEFAULT_PLAN_YEAR } from "@/store/calculator-store";
 
 export const emptyPhases = (): Record<PhaseName, PhaseStatus> => ({
   prd: "not_started",
@@ -32,6 +33,8 @@ export const emptyPMData = (): TaskPMData => ({
 export type PMColumnSortState = { column: PMSortColumn; direction: PMSortDirection } | null;
 
 type PMStoreState = {
+  activeYear: PlanYear;
+  pmDataByYear: Record<PlanYear, Record<string, TaskPMData>>;
   pmData: Record<string, TaskPMData>;
   /** Сортировка по столбцу PM (не влияет на порядок задач на вкладке «Бизнес»). */
   pmColumnSort: PMColumnSortState;
@@ -41,6 +44,7 @@ type PMStoreState = {
   togglePmColumnSort: (column: PMSortColumn) => void;
   setPmManualOrderIds: (ids: string[] | null) => void;
   resetPmTableLayout: () => void;
+  setActiveYear: (year: PlanYear) => void;
   updatePMField: <K extends keyof Omit<TaskPMData, "phases">>(
     taskId: string,
     field: K,
@@ -49,6 +53,7 @@ type PMStoreState = {
   updatePhase: (taskId: string, phase: PhaseName, status: PhaseStatus) => void;
   cyclePhase: (taskId: string, phase: PhaseName) => void;
   setPMData: (data: Record<string, TaskPMData>) => void;
+  setPMDataByYear: (data: Record<PlanYear, Record<string, TaskPMData>>, activeYear?: PlanYear) => void;
   ensureTask: (taskId: string) => void;
 };
 
@@ -310,9 +315,19 @@ const DEFAULT_PM_DATA: Record<string, TaskPMData> = {
   },
 };
 
+const emptyPmDataByYear = (): Record<PlanYear, Record<string, TaskPMData>> => ({
+  2026: DEFAULT_PM_DATA,
+  2027: {},
+});
+
+const toPlanYear = (value: unknown): PlanYear =>
+  value === 2027 || value === "2027" ? 2027 : 2026;
+
 export const usePMStore = create<PMStoreState>()(
   persist(
     (set, get) => ({
+      activeYear: DEFAULT_PLAN_YEAR,
+      pmDataByYear: emptyPmDataByYear(),
       pmData: DEFAULT_PM_DATA,
       pmColumnSort: null,
       pmManualOrderIds: null,
@@ -334,26 +349,44 @@ export const usePMStore = create<PMStoreState>()(
           pmColumnSort: ids != null ? null : state.pmColumnSort,
         })),
       resetPmTableLayout: () => set({ pmColumnSort: null, pmManualOrderIds: null }),
+      setActiveYear: (year) =>
+        set((state) => {
+          const activeYear = toPlanYear(year);
+          return {
+            activeYear,
+            pmData: state.pmDataByYear[activeYear] ?? {},
+          };
+        }),
       updatePMField: (taskId, field, value) =>
         set((state) => {
           const current = state.pmData[taskId] ?? emptyPMData();
+          const pmData = {
+            ...state.pmData,
+            [taskId]: { ...current, [field]: value },
+          };
           return {
-            pmData: {
-              ...state.pmData,
-              [taskId]: { ...current, [field]: value },
+            pmData,
+            pmDataByYear: {
+              ...state.pmDataByYear,
+              [state.activeYear]: pmData,
             },
           };
         }),
       updatePhase: (taskId, phase, status) =>
         set((state) => {
           const current = state.pmData[taskId] ?? emptyPMData();
+          const pmData = {
+            ...state.pmData,
+            [taskId]: {
+              ...current,
+              phases: { ...current.phases, [phase]: status },
+            },
+          };
           return {
-            pmData: {
-              ...state.pmData,
-              [taskId]: {
-                ...current,
-                phases: { ...current.phases, [phase]: status },
-              },
+            pmData,
+            pmDataByYear: {
+              ...state.pmDataByYear,
+              [state.activeYear]: pmData,
             },
           };
         }),
@@ -364,19 +397,42 @@ export const usePMStore = create<PMStoreState>()(
         const nextIndex = (PHASE_STATUS_CYCLE.indexOf(currentStatus) + 1) % PHASE_STATUS_CYCLE.length;
         state.updatePhase(taskId, phase, PHASE_STATUS_CYCLE[nextIndex]);
       },
-      setPMData: (data) => set({ pmData: data }),
+      setPMData: (data) =>
+        set((state) => ({
+          pmData: data,
+          pmDataByYear: {
+            ...state.pmDataByYear,
+            [state.activeYear]: data,
+          },
+        })),
+      setPMDataByYear: (data, nextActiveYear) =>
+        set((state) => {
+          const activeYear = nextActiveYear ? toPlanYear(nextActiveYear) : state.activeYear;
+          return {
+            activeYear,
+            pmDataByYear: data,
+            pmData: data[activeYear] ?? {},
+          };
+        }),
       ensureTask: (taskId) =>
         set((state) => {
           if (state.pmData[taskId]) return state;
+          const pmData = { ...state.pmData, [taskId]: emptyPMData() };
           return {
-            pmData: { ...state.pmData, [taskId]: emptyPMData() },
+            pmData,
+            pmDataByYear: {
+              ...state.pmDataByYear,
+              [state.activeYear]: pmData,
+            },
           };
         }),
     }),
     {
       name: "roadmap-pm-store",
-      version: 4,
+      version: 5,
       partialize: (state) => ({
+        activeYear: state.activeYear,
+        pmDataByYear: state.pmDataByYear,
         pmData: state.pmData,
         pmColumnSort: state.pmColumnSort,
         pmManualOrderIds: state.pmManualOrderIds,
@@ -384,6 +440,8 @@ export const usePMStore = create<PMStoreState>()(
       migrate: (persisted, version) => {
         const p = persisted as {
           pmData?: Record<string, Partial<TaskPMData>>;
+          pmDataByYear?: Partial<Record<PlanYear, Record<string, Partial<TaskPMData>>>>;
+          activeYear?: PlanYear;
           pmColumnSort?: PMColumnSortState;
           pmManualOrderIds?: string[] | null;
         };
@@ -412,7 +470,28 @@ export const usePMStore = create<PMStoreState>()(
             out = { ...out, pmColumnSort: null };
           }
         }
-        return out;
+        const activeYear = toPlanYear(out.activeYear);
+        const normalizeMap = (raw: Record<string, Partial<TaskPMData>> | undefined) =>
+          Object.fromEntries(
+            Object.entries(raw ?? {}).map(([id, row]) => [
+              id,
+              {
+                ...emptyPMData(),
+                ...row,
+                phases: { ...emptyPhases(), ...row.phases },
+              },
+            ]),
+          );
+        const pmDataByYear: Record<PlanYear, Record<string, TaskPMData>> = {
+          2026: normalizeMap(out.pmDataByYear?.[2026] ?? out.pmData ?? DEFAULT_PM_DATA),
+          2027: normalizeMap(out.pmDataByYear?.[2027]),
+        };
+        return {
+          ...out,
+          activeYear,
+          pmDataByYear,
+          pmData: pmDataByYear[activeYear],
+        };
       },
     },
   ),

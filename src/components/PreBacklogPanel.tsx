@@ -25,10 +25,11 @@ import {
   InitiativeImpactCategory,
   InitiativeStatus,
   Locale,
+  PlanYear,
   Task,
   TaskValueMetrics,
 } from "@/lib/types";
-import { normalizeImpactType, normalizeStage, useCalculatorStore } from "@/store/calculator-store";
+import { normalizeImpactType, normalizeStage, PLAN_YEARS, useCalculatorStore } from "@/store/calculator-store";
 
 import { EditableImpactInput } from "./TasksTable";
 
@@ -242,7 +243,7 @@ type PreBacklogPanelProps = {
   onSaveIdea: (task: Task) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
-  onPromoteToRoadmap: (id: string) => void;
+  onPromoteToRoadmap: (id: string, year: PlanYear) => void;
 };
 
 export function PreBacklogPanel({
@@ -418,25 +419,30 @@ export function PreBacklogPanel({
   }, [roadmapTransferToast]);
 
   const notifyMovedToRoadmap = useCallback(
-    (taskName: string) => {
+    (taskName: string, year: PlanYear) => {
       const t = getText(locale);
       const label = taskName.trim() || t.toastTaskUntitled;
-      setRoadmapTransferToast(t.toastTaskMovedToRoadmap.replace("{name}", label));
+      setRoadmapTransferToast(
+        t.toastTaskMovedToRoadmapYear.replace("{year}", String(year)).replace("{name}", label),
+      );
     },
     [locale],
   );
 
-  const handlePromoteFromExpanded = useCallback(() => {
-    if (!ideaEditDraft) return;
-    const original = initiatives.find((i) => i.id === ideaEditDraft.id);
-    if (original) {
-      flushIdeaChangesToStore(ideaEditDraft, original, onUpdate);
-    }
-    const title = ideaEditDraft.taskName;
-    onPromoteToRoadmap(ideaEditDraft.id);
-    notifyMovedToRoadmap(title);
-    closeIdeaEditor();
-  }, [closeIdeaEditor, ideaEditDraft, initiatives, notifyMovedToRoadmap, onPromoteToRoadmap, onUpdate]);
+  const handlePromoteFromExpandedForYear = useCallback(
+    (year: PlanYear) => {
+      if (!ideaEditDraft) return;
+      const original = initiatives.find((i) => i.id === ideaEditDraft.id);
+      if (original) {
+        flushIdeaChangesToStore(ideaEditDraft, original, onUpdate);
+      }
+      const title = ideaEditDraft.taskName;
+      onPromoteToRoadmap(ideaEditDraft.id, year);
+      notifyMovedToRoadmap(title, year);
+      closeIdeaEditor();
+    },
+    [closeIdeaEditor, ideaEditDraft, initiatives, notifyMovedToRoadmap, onPromoteToRoadmap, onUpdate],
+  );
 
   const handleDuplicateExpanded = useCallback(() => {
     if (!ideaEditDraft) return;
@@ -812,22 +818,27 @@ export function PreBacklogPanel({
                   </div>
                   <div className="pre-backlog-row__actions pre-backlog-row__actions--collapsed">
                     <button
-                      className="ghost-button pre-backlog-row__edit-btn"
+                      className="ghost-button"
                       type="button"
                       onClick={() => openIdeaEditor(task)}
                     >
                       {text.preBacklogEditCard}
                     </button>
-                    <button
-                      className="pre-backlog-promote-button"
-                      type="button"
-                      onClick={() => {
-                        onPromoteToRoadmap(task.id);
-                        notifyMovedToRoadmap(task.taskName);
-                      }}
-                    >
-                      {text.preBacklogPromote}
-                    </button>
+                    <div className="pre-backlog-row__year-buttons" role="group" aria-label={text.preBacklogPromoteHint}>
+                      {PLAN_YEARS.map((year) => (
+                        <button
+                          key={year}
+                          className="ghost-button pre-backlog-year-roadmap-btn"
+                          type="button"
+                          onClick={() => {
+                            onPromoteToRoadmap(task.id, year);
+                            notifyMovedToRoadmap(task.taskName, year);
+                          }}
+                        >
+                          {text.preBacklogPromoteYear.replace("{year}", String(year))}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               );
@@ -1024,14 +1035,19 @@ export function PreBacklogPanel({
                     <button className="ghost-button danger" type="button" onClick={handleRemoveExpanded}>
                       {text.remove}
                     </button>
-                    <button
-                      className="pre-backlog-promote-button"
-                      type="button"
-                      title={text.preBacklogPromoteHint}
-                      onClick={handlePromoteFromExpanded}
-                    >
-                      {text.preBacklogPromote}
-                    </button>
+                    <div className="pre-backlog-card__promote-years" role="group" aria-label={text.preBacklogPromoteHint}>
+                      {PLAN_YEARS.map((year) => (
+                        <button
+                          key={year}
+                          className="pre-backlog-promote-button"
+                          type="button"
+                          title={text.preBacklogPromoteHint}
+                          onClick={() => handlePromoteFromExpandedForYear(year)}
+                        >
+                          {text.preBacklogPromoteYear.replace("{year}", String(year))}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </article>

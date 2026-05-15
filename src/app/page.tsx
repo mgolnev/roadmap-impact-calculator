@@ -25,10 +25,12 @@ import {
   simulateScenario,
 } from "@/lib/calculations";
 import { taskCountsTowardPlan, withInitiativeDefaults } from "@/lib/initiative";
-import { AdjustableStage, SharedRoadmapPayload, Task } from "@/lib/types";
+import { AdjustableStage, PlanYear, SharedRoadmapPayload, Task, TaskPMData, YearPlan } from "@/lib/types";
 import { persistIdeasOnlyToSupabase } from "@/lib/persist-ideas-supabase";
 import { formatSupabaseError, getSupabaseClientAsync } from "@/lib/supabase";
-import { useCalculatorStore } from "@/store/calculator-store";
+import { DEFAULT_PLAN_YEAR, NEXT_PLAN_YEAR, PLAN_YEARS, useCalculatorStore } from "@/store/calculator-store";
+import { DEFAULT_BASELINE } from "@/lib/constants";
+import { normalizeSeasonalityWeights } from "@/lib/seasonality";
 import { usePMStore } from "@/store/pm-store";
 
 type RoadmapStateRow = {
@@ -36,6 +38,87 @@ type RoadmapStateRow = {
   payload: Partial<SharedRoadmapPayload> | null;
   updated_at?: string | null;
 };
+
+type LegacySharedRoadmapPayload = Partial<{
+  baseline: YearPlan["baseline"];
+  tasks: Task[];
+  ideas: Task[];
+  trafficChangePercent: number;
+  timelineMode: YearPlan["timelineMode"];
+  locale: SharedRoadmapPayload["locale"];
+  pmData: Record<string, TaskPMData>;
+}>;
+
+const emptyYearPlan = (): YearPlan => ({
+  baseline: DEFAULT_BASELINE,
+  tasks: [],
+  trafficChangePercent: 0,
+  timelineMode: "plan",
+  pmData: {},
+});
+
+const normalizeYearPlan = (plan: Partial<YearPlan> | undefined): YearPlan => {
+  const mergedBaseline = { ...DEFAULT_BASELINE, ...(plan?.baseline ?? {}) };
+  return {
+    baseline: {
+      ...mergedBaseline,
+      seasonalityWeights: normalizeSeasonalityWeights(mergedBaseline.seasonalityWeights),
+    },
+    tasks: Array.isArray(plan?.tasks) ? (plan.tasks as Task[]).map((t) => withInitiativeDefaults(t)) : [],
+    trafficChangePercent: plan?.trafficChangePercent ?? 0,
+    timelineMode: plan?.timelineMode === "dev_committed" ? "dev_committed" : "plan",
+    pmData: plan?.pmData && typeof plan.pmData === "object" ? plan.pmData : {},
+  };
+};
+
+function normalizeSharedPayload(raw: Partial<SharedRoadmapPayload> | null | undefined): SharedRoadmapPayload | null {
+  if (!raw) return null;
+  if (raw.yearPlans) {
+    return {
+      activeYear: raw.activeYear === NEXT_PLAN_YEAR ? NEXT_PLAN_YEAR : DEFAULT_PLAN_YEAR,
+      sharedIdeas: Array.isArray(raw.sharedIdeas)
+        ? raw.sharedIdeas.map((t) => withInitiativeDefaults(t))
+        : [],
+      yearPlans: {
+        2026: normalizeYearPlan(raw.yearPlans[2026]),
+        2027: normalizeYearPlan(raw.yearPlans[2027]),
+      },
+      locale: raw.locale ?? "ru",
+      _writeMode: raw._writeMode,
+    };
+  }
+
+  const legacy = raw as LegacySharedRoadmapPayload;
+  if (!Array.isArray(legacy.tasks)) return null;
+  return {
+    activeYear: DEFAULT_PLAN_YEAR,
+    sharedIdeas: Array.isArray(legacy.ideas)
+      ? legacy.ideas.map((t) => withInitiativeDefaults(t))
+      : [],
+    yearPlans: {
+      2026: normalizeYearPlan({
+        baseline: legacy.baseline,
+        tasks: legacy.tasks,
+        trafficChangePercent: legacy.trafficChangePercent,
+        timelineMode: legacy.timelineMode,
+        pmData: legacy.pmData ?? {},
+      }),
+      2027: emptyYearPlan(),
+    },
+    locale: legacy.locale ?? "ru",
+  };
+}
+
+const formatStatusDateTime = (value: string, locale: "ru" | "en") =>
+  new Date(value).toLocaleString(locale === "ru" ? "ru-RU" : "en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
 
 async function fetchRoadmapStateRow(
   supabase: NonNullable<Awaited<ReturnType<typeof getSupabaseClientAsync>>>,
@@ -62,12 +145,13 @@ async function fetchRoadmapStateRow(
 
 export default function HomePage() {
   const {
+    activeYear,
+    yearPlans,
     baseline,
     tasks,
     ideas,
     trafficChangePercent,
     locale,
-    setBaseline,
     setLocale,
     setTrafficChangePercent,
     timelineMode,
@@ -75,6 +159,9 @@ export default function HomePage() {
     updateBaseline,
     setSeasonalityWeights,
     resetSeasonalityWeights,
+    setActiveYear,
+    deriveYearBaselineFromYear,
+    applyMultiYearState,
     updateTask,
     updateIdea,
     setTasks,
@@ -82,14 +169,19 @@ export default function HomePage() {
     setAllRoadmapTasksActive,
     addTask,
     addIdea,
-    promoteIdeaToRoadmap,
+    promoteIdeaToRoadmapForYear,
     removeTask,
     removeIdea,
     duplicateTask,
     duplicateIdea,
     reorderTasks,
   } = useCalculatorStore();
-  const { pmData, setPMData } = usePMStore();
+  const {
+    pmData,
+    pmDataByYear,
+    setPMDataByYear,
+    setActiveYear: setPMActiveYear,
+  } = usePMStore();
   const text = getText(locale);
   const [importState, setImportState] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [activeImport, setActiveImport] = useState<"tasks" | "scenario" | null>(null);
@@ -98,6 +190,16 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<"business" | "ideas" | "pm">("business");
   const [sharedStatus, setSharedStatus] = useState<string | null>(null);
   const tasksSectionRef = useRef<HTMLDivElement>(null);
+  const applyingSharedPayloadRef = useRef(false);
+  const sourceYearPlan = yearPlans[DEFAULT_PLAN_YEAR];
+
+  useEffect(() => {
+    setPMActiveYear(activeYear);
+  }, [activeYear, setPMActiveYear]);
+
+  useEffect(() => {
+    deriveYearBaselineFromYear(DEFAULT_PLAN_YEAR, NEXT_PLAN_YEAR);
+  }, [activeYear, deriveYearBaselineFromYear, sourceYearPlan]);
 
   const allInitiativesForMetrics = useMemo(() => [...ideas, ...tasks], [ideas, tasks]);
 
@@ -159,6 +261,7 @@ export default function HomePage() {
   const exportWorkbook = () => {
     const workbook = buildRoadmapImpactWorkbook({
       locale,
+      planYear: activeYear,
       baseline,
       tasks,
       ideas,
@@ -166,7 +269,7 @@ export default function HomePage() {
       taskMetrics,
       timelineMode,
     });
-    XLSX.writeFile(workbook, "roadmap-impact-calculator-2026.xlsx");
+    XLSX.writeFile(workbook, `roadmap-impact-calculator-${activeYear}.xlsx`);
   };
 
   const exportTaskTemplate = () => {
@@ -178,17 +281,20 @@ export default function HomePage() {
   const exportScenarioBackup = () => {
     const workbook = buildScenarioBackupWorkbook({
       locale,
+      activeYear,
+      yearPlans,
       baseline,
       tasks,
       ideas,
       trafficChangePercent,
       timelineMode,
       pmData,
+      pmDataByYear,
     });
 
     XLSX.writeFile(
       workbook,
-      locale === "ru" ? "backup-scenario-roadmap.xlsx" : "roadmap-scenario-backup.xlsx",
+      locale === "ru" ? `backup-scenario-roadmap-${activeYear}.xlsx` : `roadmap-scenario-backup-${activeYear}.xlsx`,
     );
     setImportState(null);
   };
@@ -230,21 +336,27 @@ export default function HomePage() {
       const imported = parseScenarioBackupWorkbook(buffer, locale);
       const importedText = getText(imported.locale);
 
-      setLocale(imported.locale);
-      setBaseline(imported.baseline);
-      setTasks(imported.tasks.map((t) => withInitiativeDefaults(t)));
-      setIdeas(imported.ideas.map((t) => withInitiativeDefaults(t)));
-      setTrafficChangePercent(imported.trafficChangePercent);
-      setTimelineMode(imported.timelineMode);
-      setPMData(imported.pmData);
+      applyMultiYearState({
+        activeYear: imported.activeYear,
+        sharedIdeas: imported.ideas.map((t) => withInitiativeDefaults(t)),
+        yearPlans: imported.yearPlans,
+        locale: imported.locale,
+      });
+      setPMDataByYear(
+        {
+          2026: imported.yearPlans[2026].pmData,
+          2027: imported.yearPlans[2027].pmData,
+        },
+        imported.activeYear,
+      );
       setSelectedStageFilter("");
 
       setImportState({
         type: "success",
         message:
           imported.locale === "ru"
-            ? `${importedText.scenarioImportSuccess} Roadmap: ${imported.tasks.length}, идей: ${imported.ideas.length}.`
-            : `${importedText.scenarioImportSuccess} Roadmap: ${imported.tasks.length}, ideas: ${imported.ideas.length}.`,
+            ? `${importedText.scenarioImportSuccess} ${imported.activeYear}: ${imported.yearPlans[imported.activeYear].tasks.length}, идей: ${imported.ideas.length}.`
+            : `${importedText.scenarioImportSuccess} ${imported.activeYear}: ${imported.yearPlans[imported.activeYear].tasks.length}, ideas: ${imported.ideas.length}.`,
       });
     } catch (error) {
       setImportState({
@@ -267,65 +379,48 @@ export default function HomePage() {
       loc: "ru" | "en",
       source: "initial" | "realtime" = "initial",
     ) => {
-      const p = data.payload;
+      applyingSharedPayloadRef.current = true;
+      try {
+        const payload = normalizeSharedPayload(data.payload);
+        if (!payload) return;
 
-      if (source === "realtime" && p._writeMode === "ideas") {
-        if (Array.isArray(p.ideas)) {
-          setIdeas((p.ideas as Task[]).map((t) => withInitiativeDefaults(t)));
+        if (source === "realtime" && payload._writeMode === "ideas") {
+          setIdeas(payload.sharedIdeas.map((t) => withInitiativeDefaults(t)));
+          const savedAt = data.updated_at ? formatStatusDateTime(data.updated_at, loc) : "";
+          setSharedStatus(
+            savedAt
+              ? loc === "ru"
+                ? `Идеи обновлены (${savedAt})`
+                : `Ideas updated (${savedAt})`
+              : loc === "ru"
+                ? "Идеи синхронизированы"
+                : "Ideas synced",
+          );
+          return;
         }
-        const timeStr = data.updated_at
-          ? new Date(data.updated_at).toLocaleTimeString(loc === "ru" ? "ru-RU" : "en-GB", {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-              hour12: false,
-            })
-          : "";
-        setSharedStatus(
-          timeStr
-            ? loc === "ru"
-              ? `Идеи обновлены (${timeStr})`
-              : `Ideas updated (${timeStr})`
-            : loc === "ru"
-              ? "Идеи синхронизированы"
-              : "Ideas synced",
+
+        applyMultiYearState(payload);
+        setPMDataByYear(
+          {
+            2026: payload.yearPlans[2026].pmData,
+            2027: payload.yearPlans[2027].pmData,
+          },
+          payload.activeYear,
         );
-        return;
-      }
 
-      if (p?.locale) setLocale(p.locale);
-      if (p?.baseline) setBaseline(p.baseline);
-      if (Array.isArray(p?.tasks)) {
-        setTasks((p.tasks as Task[]).map((t) => withInitiativeDefaults(t)));
+        const savedAt = data.updated_at ? formatStatusDateTime(data.updated_at, loc) : "";
+        setSharedStatus(
+          savedAt
+            ? loc === "ru"
+              ? `Роадмап сохранён: ${savedAt}`
+              : `Roadmap saved: ${savedAt}`
+            : loc === "ru"
+              ? "Загружен общий roadmap"
+              : "Loaded shared roadmap",
+        );
+      } finally {
+        applyingSharedPayloadRef.current = false;
       }
-      // Не затираем идеи, если в общем payload нет ключа ideas (старые записи в Supabase).
-      // Пустой список с сервера — только если явно пришёл массив (в т.ч. []).
-      if (Array.isArray(p?.ideas)) {
-        setIdeas((p.ideas as Task[]).map((t) => withInitiativeDefaults(t)));
-      }
-      if (typeof p?.trafficChangePercent === "number") setTrafficChangePercent(p.trafficChangePercent);
-      if (p?.timelineMode === "dev_committed" || p?.timelineMode === "plan") {
-        setTimelineMode(p.timelineMode);
-      }
-      if (p?.pmData && typeof p.pmData === "object") setPMData(p.pmData);
-
-      const timeStr = data.updated_at
-        ? new Date(data.updated_at).toLocaleTimeString(loc === "ru" ? "ru-RU" : "en-GB", {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: false,
-          })
-        : "";
-      setSharedStatus(
-        timeStr
-          ? loc === "ru"
-            ? `Роадмап сохранён в ${timeStr}`
-            : `Roadmap saved at ${timeStr}`
-          : loc === "ru"
-            ? "Загружен общий roadmap"
-            : "Loaded shared roadmap",
-      );
     };
 
     const loadSharedRoadmap = async () => {
@@ -398,6 +493,7 @@ export default function HomePage() {
 
     const unsub = useCalculatorStore.subscribe((state, previousState) => {
       if (state.ideas === previousState.ideas) return;
+      if (applyingSharedPayloadRef.current) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = null;
@@ -436,19 +532,24 @@ export default function HomePage() {
       return;
     }
 
-    const serverIdeas = Array.isArray(serverPayload?.ideas)
-      ? (serverPayload.ideas as Task[]).map((t) => withInitiativeDefaults(t))
-      : [];
+    const normalizedServerPayload = normalizeSharedPayload(serverPayload);
+    const serverIdeas = normalizedServerPayload?.sharedIdeas ?? [];
     const payloadIdeas = calc.ideas.length === 0 && serverIdeas.length > 0 ? serverIdeas : calc.ideas;
 
     const payload: SharedRoadmapPayload = {
-      baseline: calc.baseline,
-      tasks: calc.tasks,
-      ideas: payloadIdeas,
-      trafficChangePercent: calc.trafficChangePercent,
-      timelineMode: calc.timelineMode,
+      activeYear: calc.activeYear,
+      sharedIdeas: payloadIdeas,
+      yearPlans: {
+        2026: {
+          ...(calc.yearPlans[2026] ?? emptyYearPlan()),
+          pmData: pm.pmDataByYear[2026] ?? {},
+        },
+        2027: {
+          ...(calc.yearPlans[2027] ?? emptyYearPlan()),
+          pmData: pm.pmDataByYear[2027] ?? {},
+        },
+      },
       locale: calc.locale,
-      pmData: pm.pmData,
       _writeMode: "full",
     };
 
@@ -465,14 +566,9 @@ export default function HomePage() {
       return;
     }
 
-    const timeStr = new Date().toLocaleTimeString(calc.locale === "ru" ? "ru-RU" : "en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
+    const savedAt = formatStatusDateTime(new Date().toISOString(), calc.locale);
     setSharedStatus(
-      calc.locale === "ru" ? `Роадмап сохранён в ${timeStr}` : `Roadmap saved at ${timeStr}`,
+      calc.locale === "ru" ? `Роадмап сохранён: ${savedAt}` : `Roadmap saved: ${savedAt}`,
     );
   };
 
@@ -480,7 +576,7 @@ export default function HomePage() {
     <main className="page-shell">
       <section className="hero">
         <div>
-          <p className="eyebrow">{text.heroEyebrow}</p>
+          <p className="eyebrow">{text.heroEyebrow.replace("2026", String(activeYear))}</p>
           <h1>{text.heroTitle}</h1>
           <p className="hero-text">{text.heroDescription}</p>
           <div className="hero-export-row">
@@ -539,6 +635,25 @@ export default function HomePage() {
                 {text.tabPM}
               </button>
             </div>
+            <label className="traffic-control">
+              <select
+                aria-label={locale === "ru" ? "Год плана" : "Plan year"}
+                value={activeYear}
+                onChange={(event) => {
+                  const nextYear = Number(event.target.value) as PlanYear;
+                  setActiveYear(nextYear);
+                  setPMActiveYear(nextYear);
+                  setSelectedStageFilter("");
+                  setSelectedProjectFilter("");
+                }}
+              >
+                {PLAN_YEARS.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
           <div className="toolbar-group toolbar-group-gap">
             {sharedStatus ? <span className="toolbar-status-inline">{sharedStatus}</span> : null}
@@ -561,7 +676,7 @@ export default function HomePage() {
           onSaveIdea={addIdea}
           onRemove={removeIdea}
           onDuplicate={duplicateIdea}
-          onPromoteToRoadmap={promoteIdeaToRoadmap}
+          onPromoteToRoadmap={promoteIdeaToRoadmapForYear}
         />
       ) : null}
 
@@ -670,7 +785,7 @@ export default function HomePage() {
 
           <CollapsibleSection
             defaultOpen={false}
-            title={text.monthlyModel}
+            title={text.monthlyModel.replace("2026", String(activeYear))}
             description={<p>{text.monthlyDescription}</p>}
           >
             <MonthlyModelTable locale={locale} rows={projectedSimulation.months} />
@@ -678,6 +793,7 @@ export default function HomePage() {
 
           <SeasonalityWeightsPanel
             locale={locale}
+            planYear={activeYear}
             weights={baseline.seasonalityWeights}
             onCommit={setSeasonalityWeights}
             onResetEqual={resetSeasonalityWeights}

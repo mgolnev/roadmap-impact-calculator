@@ -19,7 +19,7 @@ import {
   INITIATIVE_STATUS_LABELS,
 } from "@/lib/i18n";
 import { buildTopProjectRows } from "@/lib/top-projects";
-import { BaselineInput, ImpactType, Locale, Task, TaskValueMetrics, TimelineMode } from "@/lib/types";
+import { BaselineInput, ImpactType, Locale, PlanYear, Task, TaskValueMetrics, TimelineMode } from "@/lib/types";
 
 const shortImpactTypeLabel = (locale: Locale, type: ImpactType | undefined): string => {
   if (!type) return "";
@@ -32,6 +32,7 @@ const shortImpactTypeLabel = (locale: Locale, type: ImpactType | undefined): str
 
 type ExportWorkbookParams = {
   locale: Locale;
+  planYear?: PlanYear;
   baseline: BaselineInput;
   tasks: Task[];
   /** Pre-backlog (отдельный лист в XLSX). */
@@ -99,6 +100,7 @@ const conversionRows = (
 
 export const buildRoadmapImpactWorkbook = ({
   locale,
+  planYear = 2026,
   baseline,
   tasks,
   ideas = [],
@@ -127,6 +129,7 @@ export const buildRoadmapImpactWorkbook = ({
 
   const summarySheet = XLSX.utils.json_to_sheet([
     {
+      planYear,
       trafficChangePercent,
       netRevenueAfterTasks: projectedSimulation.annual.netRevenue,
       deltaNetRevenue:

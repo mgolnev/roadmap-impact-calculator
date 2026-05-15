@@ -1,9 +1,9 @@
 import { DEFAULT_BASELINE } from "@/lib/constants";
 import { withInitiativeDefaults } from "@/lib/initiative";
 import { normalizeSeasonalityWeights } from "@/lib/seasonality";
-import type { SharedRoadmapPayload, Task, TimelineMode } from "@/lib/types";
+import type { PlanYear, SharedRoadmapPayload, Task, TaskPMData, TimelineMode, YearPlan } from "@/lib/types";
 import { formatSupabaseError, getSupabaseClientAsync } from "@/lib/supabase";
-import { useCalculatorStore } from "@/store/calculator-store";
+import { DEFAULT_PLAN_YEAR, useCalculatorStore } from "@/store/calculator-store";
 import { usePMStore } from "@/store/pm-store";
 
 type RoadmapStateRow = {
@@ -11,30 +11,104 @@ type RoadmapStateRow = {
   payload: Partial<SharedRoadmapPayload> | null;
 };
 
-function normalizeServerPayload(
-  raw: Partial<SharedRoadmapPayload> | null | undefined,
-): SharedRoadmapPayload | null {
-  if (!raw || !Array.isArray(raw.tasks)) return null;
-  const timelineMode: TimelineMode =
-    raw.timelineMode === "dev_committed" ? "dev_committed" : "plan";
+type LegacySharedRoadmapPayload = {
+  baseline?: SharedRoadmapPayload["yearPlans"][PlanYear]["baseline"];
+  tasks?: Task[];
+  ideas?: Task[];
+  trafficChangePercent?: number;
+  timelineMode?: TimelineMode;
+  locale?: SharedRoadmapPayload["locale"];
+  pmData?: Record<string, TaskPMData>;
+};
 
-  const mergedBaseline = { ...DEFAULT_BASELINE, ...(raw.baseline ?? {}) };
+const emptyYearPlan = (): YearPlan => ({
+  baseline: DEFAULT_BASELINE,
+  tasks: [],
+  trafficChangePercent: 0,
+  timelineMode: "plan",
+  pmData: {},
+});
 
+const normalizeYearPlan = (plan: Partial<YearPlan> | undefined): YearPlan => {
+  const mergedBaseline = { ...DEFAULT_BASELINE, ...(plan?.baseline ?? {}) };
   return {
     baseline: {
       ...mergedBaseline,
       seasonalityWeights: normalizeSeasonalityWeights(mergedBaseline.seasonalityWeights),
     },
-    tasks: (raw.tasks as Task[]).map((t) => withInitiativeDefaults(t)),
-    ideas: Array.isArray(raw.ideas)
-      ? (raw.ideas as Task[]).map((t) => withInitiativeDefaults(t))
+    tasks: Array.isArray(plan?.tasks)
+      ? (plan.tasks as Task[]).map((t) => withInitiativeDefaults(t))
       : [],
-    trafficChangePercent: raw.trafficChangePercent ?? 0,
-    timelineMode,
-    locale: raw.locale ?? "ru",
-    pmData: raw.pmData && typeof raw.pmData === "object" ? raw.pmData : {},
+    trafficChangePercent: plan?.trafficChangePercent ?? 0,
+    timelineMode: plan?.timelineMode === "dev_committed" ? "dev_committed" : "plan",
+    pmData: plan?.pmData && typeof plan.pmData === "object" ? plan.pmData : {},
+  };
+};
+
+function normalizeServerPayload(
+  raw: Partial<SharedRoadmapPayload> | null | undefined,
+): SharedRoadmapPayload | null {
+  if (!raw) return null;
+  if (raw.yearPlans) {
+    const activeYear: PlanYear = raw.activeYear === 2027 ? 2027 : DEFAULT_PLAN_YEAR;
+    return {
+      activeYear,
+      sharedIdeas: Array.isArray(raw.sharedIdeas)
+        ? raw.sharedIdeas.map((t) => withInitiativeDefaults(t))
+        : [],
+      yearPlans: {
+        2026: normalizeYearPlan(raw.yearPlans[2026]),
+        2027: normalizeYearPlan(raw.yearPlans[2027]),
+      },
+      locale: raw.locale ?? "ru",
+      _writeMode: raw._writeMode,
+    };
+  }
+
+  const legacy = raw as Partial<LegacySharedRoadmapPayload>;
+  if (!Array.isArray(legacy.tasks)) return null;
+  const timelineMode: TimelineMode =
+    legacy.timelineMode === "dev_committed" ? "dev_committed" : "plan";
+  return {
+    activeYear: DEFAULT_PLAN_YEAR,
+    sharedIdeas: Array.isArray(legacy.ideas)
+      ? (legacy.ideas as Task[]).map((t) => withInitiativeDefaults(t))
+      : [],
+    yearPlans: {
+      2026: normalizeYearPlan({
+        baseline: legacy.baseline,
+        tasks: legacy.tasks,
+        trafficChangePercent: legacy.trafficChangePercent ?? 0,
+        timelineMode,
+        pmData: legacy.pmData ?? {},
+      }),
+      2027: emptyYearPlan(),
+    },
+    locale: legacy.locale ?? "ru",
   };
 }
+
+const buildSharedPayload = (
+  calc: ReturnType<typeof useCalculatorStore.getState>,
+  pm: ReturnType<typeof usePMStore.getState>,
+  sharedIdeas: Task[],
+  writeMode: "ideas" | "full",
+): SharedRoadmapPayload => ({
+  activeYear: calc.activeYear,
+  sharedIdeas,
+  yearPlans: {
+    2026: {
+      ...(calc.yearPlans[2026] ?? emptyYearPlan()),
+      pmData: pm.pmDataByYear[2026] ?? {},
+    },
+    2027: {
+      ...(calc.yearPlans[2027] ?? emptyYearPlan()),
+      pmData: pm.pmDataByYear[2027] ?? {},
+    },
+  },
+  locale: calc.locale,
+  _writeMode: writeMode,
+});
 
 async function fetchRoadmapStateRow(
   supabase: NonNullable<Awaited<ReturnType<typeof getSupabaseClientAsync>>>,
@@ -80,20 +154,11 @@ export async function persistIdeasOnlyToSupabase(ideas: Task[]): Promise<{ ok: b
   if (existingRow?.id != null && fromServer) {
     nextPayload = {
       ...fromServer,
-      ideas: normalizedIdeas,
+      sharedIdeas: normalizedIdeas,
       _writeMode: "ideas",
     };
   } else {
-    nextPayload = {
-      baseline: calc.baseline,
-      tasks: calc.tasks,
-      ideas: normalizedIdeas,
-      trafficChangePercent: calc.trafficChangePercent,
-      timelineMode: calc.timelineMode,
-      locale: calc.locale,
-      pmData: pm.pmData,
-      _writeMode: "ideas",
-    };
+    nextPayload = buildSharedPayload(calc, pm, normalizedIdeas, "ideas");
   }
 
   const updated = { payload: nextPayload, updated_at: new Date().toISOString() };

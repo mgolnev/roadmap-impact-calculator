@@ -31,7 +31,7 @@ const formatDeltaCell = (row: FunnelComparisonRow, delta: number) => {
 };
 
 export default function CeoReportPage() {
-  const { baseline, tasks, ideas, trafficChangePercent, locale, timelineMode } = useCalculatorStore();
+  const { activeYear, baseline, tasks, ideas, trafficChangePercent, locale, timelineMode } = useCalculatorStore();
   const text = getText(locale);
   const stageLabels = getStageLabels(locale);
 
@@ -227,7 +227,7 @@ export default function CeoReportPage() {
         </button>
       </div>
 
-      <p className="ceo-report__brand">Roadmap Impact Calculator 2026</p>
+      <p className="ceo-report__brand">Roadmap Impact Calculator {activeYear}</p>
       <h1>{text.ceoReportTitle}</h1>
       <p className="ceo-report__meta">
         {text.ceoReportGenerated}: {generated}

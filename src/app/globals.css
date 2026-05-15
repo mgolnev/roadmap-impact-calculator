@@ -1124,6 +1124,13 @@ a.primary-button:visited {
   font-size: var(--font-xs);
 }
 
+.actions .task-year-actions-select {
+  flex: 0 1 9.5rem;
+  min-width: 7.5rem;
+  width: auto;
+  max-width: 12rem;
+}
+
 /* ---------- Priority select (chip-like) ---------- */
 
 .priority-select {

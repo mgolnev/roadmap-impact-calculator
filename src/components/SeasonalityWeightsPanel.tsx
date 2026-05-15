@@ -5,10 +5,11 @@ import { useEffect, useState } from "react";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { getMonthLabel, getText } from "@/lib/i18n";
 import { normalizeSeasonalityWeights } from "@/lib/seasonality";
-import { Locale } from "@/lib/types";
+import { Locale, PlanYear } from "@/lib/types";
 
 type SeasonalityWeightsPanelProps = {
   locale: Locale;
+  planYear: PlanYear;
   weights: number[];
   onCommit: (next: number[]) => void;
   onResetEqual: () => void;
@@ -18,6 +19,7 @@ const toDraft = (w: number[]) => w.map((x) => Math.round(x * 10000) / 100);
 
 export function SeasonalityWeightsPanel({
   locale,
+  planYear,
   weights,
   onCommit,
   onResetEqual,
@@ -34,7 +36,7 @@ export function SeasonalityWeightsPanel({
   return (
     <CollapsibleSection
       className="seasonality-card"
-      title={text.seasonalityTitle}
+      title={text.seasonalityTitle.replace("2026", String(planYear))}
       description={<p className="seasonality-hint">{text.seasonalityHint}</p>}
       headerAside={
         <button className="ghost-button" type="button" onClick={() => onResetEqual()}>

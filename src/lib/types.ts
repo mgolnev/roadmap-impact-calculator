@@ -3,6 +3,7 @@ export type Locale = "ru" | "en";
 
 /** План (продукт) vs месяц, на который закоммитилась разработка — для сценарного пересчёта. */
 export type TimelineMode = "plan" | "dev_committed";
+export type PlanYear = 2026 | 2027;
 export type AdjustableStage =
   | FunnelStage
   | "traffic"
@@ -70,6 +71,10 @@ export type FunnelRates = {
 
 export type Task = {
   id: string;
+  /** Если задача скопирована из другого годового плана, ссылка на исходный год. */
+  originYear?: PlanYear;
+  /** Если задача скопирована из другого годового плана, ссылка на исходную задачу. */
+  originTaskId?: string;
   project: string;
   taskName: string;
   priority: Priority;
@@ -147,7 +152,7 @@ export type TaskValueMetrics = {
   standalone30: number;
   incrementalCurrent: number;
   valuePerMonth: number;
-  /** Годовой эффект при том же месячном темпе, без учёта доли года после релиза (12 × эффект в месяц). */
+  /** Годовой эффект задачи в сценарии "старт в январе". */
   valuePerYearIgnoreRelease: number;
 };
 
@@ -199,21 +204,28 @@ export type TaskPMData = {
   phases: Record<PhaseName, PhaseStatus>;
 };
 
-export type SharedRoadmapPayload = {
+export type YearPlan = {
   baseline: BaselineInput;
   /** Roadmap / план (отдельно от pre-backlog идей). */
   tasks: Task[];
-  /** Идеи и гипотезы до переноса в roadmap. */
-  ideas: Task[];
   trafficChangePercent: number;
   /** Какой горизонт сроков использовать в годовой модели. */
   timelineMode?: TimelineMode;
-  locale: Locale;
   pmData: Record<string, TaskPMData>;
+};
+
+export type MultiYearRoadmapPayload = {
+  activeYear: PlanYear;
+  /** Идеи и гипотезы до переноса в roadmap; общий каталог для всех годов. */
+  sharedIdeas: Task[];
+  yearPlans: Record<PlanYear, YearPlan>;
+  locale: Locale;
   /**
    * Служебное поле для Supabase realtime: при `ideas` колонка обновляется автосохранением идей,
    * не нужно трогать локальный roadmap. Полное сохранение кнопкой — `full`.
    */
   _writeMode?: "ideas" | "full";
 };
+
+export type SharedRoadmapPayload = MultiYearRoadmapPayload;
 

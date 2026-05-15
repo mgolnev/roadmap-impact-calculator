@@ -392,6 +392,14 @@ export const getTaskValueMetrics = (
         simulateWithSingleTask(baseline, tasks, task.id, getTrafficMultiplier(30), timelineMode).annual
           .netRevenue - plus30BaseNet;
       const effMonth = effectiveReleaseMonth(task, timelineMode);
+      const januaryStartTask = {
+        ...task,
+        releaseMonth: 1,
+        devCommittedReleaseMonth: 1,
+      };
+      const valuePerYearIgnoreRelease =
+        simulateScenario(baseline, [januaryStartTask], getTrafficMultiplier(0), { timelineMode }).annual
+          .netRevenue - baseScenarioNet;
       const monthsActive = Math.max(0, 13 - effMonth);
       const valuePerMonth = monthsActive > 0 ? standaloneBase / monthsActive : 0;
       const incrementalCurrent = taskCountsTowardPlan(task)
@@ -408,7 +416,7 @@ export const getTaskValueMetrics = (
           standalone30,
           incrementalCurrent,
           valuePerMonth,
-          valuePerYearIgnoreRelease: valuePerMonth * 12,
+          valuePerYearIgnoreRelease,
         },
       ];
     }),

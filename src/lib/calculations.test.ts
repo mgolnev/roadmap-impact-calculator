@@ -5,6 +5,7 @@ import { getTaskValueMetrics, getTrafficMultiplier, simulateScenario } from "@/l
 import { withInitiativeDefaults } from "@/lib/initiative";
 import { normalizeSeasonalityWeights } from "@/lib/seasonality";
 import { BaselineInput, Task } from "@/lib/types";
+import { baselineFromAnnualFunnel } from "@/store/calculator-store";
 
 const baseline: BaselineInput = {
   ...DEFAULT_BASELINE,
@@ -143,6 +144,102 @@ describe("simulateScenario", () => {
     expect(result.annual.sessions).toBeCloseTo(1080, 6);
   });
 
+  it("keeps traffic and buyout effects distinct even when relative net uplift is equal", () => {
+    const base = simulateScenario(baseline, [], getTrafficMultiplier(0));
+    const trafficTask = createTask({
+      id: "traffic-task",
+      stage1: "traffic",
+      impact1Type: "relative_percent",
+      impact1Value: 0.1,
+    });
+    const buyoutTask = createTask({
+      id: "buyout-task",
+      stage1: "buyout",
+      impact1Type: "relative_percent",
+      impact1Value: 0.1,
+    });
+
+    const withTraffic = simulateScenario(baseline, [trafficTask], getTrafficMultiplier(0));
+    const withBuyout = simulateScenario(baseline, [buyoutTask], getTrafficMultiplier(0));
+
+    expect(withTraffic.annual.netRevenue - base.annual.netRevenue).toBeCloseTo(
+      withBuyout.annual.netRevenue - base.annual.netRevenue,
+      6,
+    );
+
+    expect(withTraffic.annual.sessions).toBeCloseTo(base.annual.sessions * 1.1, 6);
+    expect(withTraffic.annual.orders).toBeCloseTo(base.annual.orders * 1.1, 6);
+    expect(withTraffic.annual.grossRevenue).toBeCloseTo(base.annual.grossRevenue * 1.1, 6);
+    expect(withTraffic.annual.buyoutRate).toBeCloseTo(base.annual.buyoutRate, 6);
+
+    expect(withBuyout.annual.sessions).toBeCloseTo(base.annual.sessions, 6);
+    expect(withBuyout.annual.orders).toBeCloseTo(base.annual.orders, 6);
+    expect(withBuyout.annual.grossRevenue).toBeCloseTo(base.annual.grossRevenue, 6);
+    expect(withBuyout.annual.buyoutRate).toBeCloseTo(base.annual.buyoutRate * 1.1, 6);
+  });
+
+  it("reports equal standalone net value for equal relative traffic and buyout uplifts", () => {
+    const metrics = getTaskValueMetrics(
+      baseline,
+      [
+        createTask({
+          id: "traffic-task",
+          stage1: "traffic",
+          impact1Type: "relative_percent",
+          impact1Value: 0.1,
+        }),
+        createTask({
+          id: "buyout-task",
+          stage1: "buyout",
+          impact1Type: "relative_percent",
+          impact1Value: 0.1,
+        }),
+      ],
+      0,
+    );
+
+    expect(metrics["traffic-task"].standaloneBase).toBeCloseTo(
+      metrics["buyout-task"].standaloneBase,
+      6,
+    );
+  });
+
+  it("treats buyout percentage points differently from relative buyout percent", () => {
+    const base = simulateScenario(baseline, [], getTrafficMultiplier(0));
+    const relativeBuyout = simulateScenario(
+      baseline,
+      [
+        createTask({
+          id: "relative-buyout",
+          stage1: "buyout",
+          impact1Type: "relative_percent",
+          impact1Value: 0.1,
+        }),
+      ],
+      getTrafficMultiplier(0),
+    );
+    const ppBuyout = simulateScenario(
+      baseline,
+      [
+        createTask({
+          id: "pp-buyout",
+          stage1: "buyout",
+          impact1Type: "absolute_pp",
+          impact1Value: 0.1,
+        }),
+      ],
+      getTrafficMultiplier(0),
+    );
+
+    expect(relativeBuyout.annual.buyoutRate).toBeCloseTo(0.88, 6);
+    expect(ppBuyout.annual.buyoutRate).toBeCloseTo(0.9, 6);
+    expect(ppBuyout.annual.netRevenue - base.annual.netRevenue).toBeCloseTo(
+      base.annual.grossRevenue * 0.1,
+      6,
+    );
+    expect(ppBuyout.annual.orders).toBeCloseTo(base.annual.orders, 6);
+  });
+
   it("sums monthly sessions to annual sessions times traffic multiplier using seasonality weights", () => {
     const skewed = normalizeSeasonalityWeights([3, ...Array(11).fill(1)]);
     const b: BaselineInput = { ...baseline, seasonalityWeights: skewed };
@@ -188,7 +285,7 @@ describe("simulateScenario", () => {
     expect(metrics["upt-task"].standaloneBase).toBeGreaterThan(0);
   });
 
-  it("annualizes monthly run-rate to twelve months for valuePerYearIgnoreRelease", () => {
+  it("computes valuePerYearIgnoreRelease as if task started in january", () => {
     const metrics = getTaskValueMetrics(
       baseline,
       [
@@ -203,7 +300,7 @@ describe("simulateScenario", () => {
       0,
     );
     const m = metrics["m-task"];
-    expect(m.valuePerYearIgnoreRelease).toBeCloseTo(m.valuePerMonth * 12, 6);
+    expect(m.valuePerYearIgnoreRelease).toBeGreaterThan(m.standaloneBase);
   });
 
   it("splits roadmap contribution sequentially so task values sum to total delta", () => {
@@ -255,5 +352,28 @@ describe("simulateScenario", () => {
     const onlyPlanned = simulateScenario(baseline, [planned], getTrafficMultiplier(0));
     const mixed = simulateScenario(baseline, [planned, draft], getTrafficMultiplier(0));
     expect(mixed.annual.netRevenue).toBeCloseTo(onlyPlanned.annual.netRevenue, 6);
+  });
+
+  it("can derive the next year baseline from the projected annual funnel", () => {
+    const result = simulateScenario(
+      baseline,
+      [
+        createTask({
+          id: "uplift",
+          stage1: "order",
+          impact1Type: "relative_percent",
+          impact1Value: 0.1,
+        }),
+      ],
+      getTrafficMultiplier(5),
+    );
+    const nextBaseline = baselineFromAnnualFunnel(result.annual, baseline.seasonalityWeights);
+
+    expect(nextBaseline.sessions).toBeCloseTo(result.annual.sessions, 6);
+    expect(nextBaseline.catalogCr).toBeCloseTo(result.annual.rates.catalogCr, 6);
+    expect(nextBaseline.orderCr).toBeCloseTo(result.annual.rates.orderCr, 6);
+    expect(nextBaseline.buyoutRate).toBeCloseTo(result.annual.buyoutRate, 6);
+    expect(nextBaseline.atv).toBeCloseTo(result.annual.atv, 6);
+    expect(nextBaseline.seasonalityWeights).toEqual(baseline.seasonalityWeights);
   });
 });
