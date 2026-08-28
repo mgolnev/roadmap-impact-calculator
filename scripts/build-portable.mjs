@@ -12,8 +12,22 @@ const appDir = path.join(portableDir, "app");
 const binDir = path.join(portableDir, "bin");
 const serverScript = path.join(projectRoot, "scripts", "portable-server.cjs");
 
+const buildResult = spawnSync(
+  process.platform === "win32" ? "npm.cmd" : "npm",
+  ["run", "build"],
+  {
+    cwd: projectRoot,
+    env: { ...process.env, PORTABLE_BUILD: "1" },
+    stdio: "inherit",
+  },
+);
+
+if (buildResult.status !== 0) {
+  throw new Error("Static build failed.");
+}
+
 if (!existsSync(outDir)) {
-  throw new Error("Static build not found. Run `npm run build` first.");
+  throw new Error("Static build not found after `npm run build`.");
 }
 
 rmSync(portableDir, { recursive: true, force: true });

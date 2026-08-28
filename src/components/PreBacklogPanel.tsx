@@ -515,12 +515,15 @@ export function PreBacklogPanel({
   useEffect(() => {
     if (!expandedId) return;
     if (!initiatives.some((i) => i.id === expandedId)) {
+      // Closing the editor keeps external store changes and the local dialog in sync.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       closeIdeaEditor();
     }
   }, [closeIdeaEditor, expandedId, initiatives]);
 
   useEffect(() => {
     if (!hasActiveIdeaFilters || filteredInitiatives.length >= initiatives.length) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFiltersToastVisible(false);
       return;
     }
@@ -532,6 +535,7 @@ export function PreBacklogPanel({
   useEffect(() => {
     if (!expandedId) return;
     if (!filteredInitiatives.some((i) => i.id === expandedId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       closeIdeaEditor();
     }
   }, [closeIdeaEditor, expandedId, filteredInitiatives]);

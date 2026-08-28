@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/write-supabase-config.js && next build",
-    "start": "node scripts/portable-server.cjs out --open",
+    "build": "next build",
+    "start": "node scripts/amvera-server.mjs",
     "portable:serve": "node scripts/portable-server.cjs out --open",
-    "portable:build": "npm run build && node scripts/build-portable.mjs",
+    "portable:build": "node scripts/build-portable.mjs",
     "lint": "eslint .",
     "test": "vitest run"
   },
@@ -16,9 +16,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@supabase/supabase-js": "^2.99.2",
     "clsx": "^2.1.1",
     "next": "^16.1.6",
+    "pg": "^8.23.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "xlsx": "^0.18.5",
@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",

@@ -296,17 +296,28 @@ npm run portable:build
 - macOS: `portable/run-macos.command`
 - Windows: `portable/run-windows.bat`
 
-### Общий roadmap (Supabase)
+### Общий roadmap (PostgreSQL)
 
-Если настроен Supabase (см. `.env.example`), приложение сохраняет и загружает общий roadmap в таблицу `roadmap_state`. Для **real-time** обновлений (когда другой пользователь сохраняет) нужно включить Realtime для этой таблицы:
+Приложение подключается к PostgreSQL только через серверный `/api/roadmap`: строка подключения и пароль не попадают в браузер. Таблица `roadmap_state` создаётся автоматически при первом обращении; тот же DDL лежит в `database/migrations/001_init.sql`.
 
-```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE roadmap_state;
+**Идеи (вкладка pre-backlog)** уходят в PostgreSQL автоматически с небольшой задержкой после правок. **Основной roadmap** обновляется только кнопкой «Сохранить общий roadmap». Изменения других пользователей подхватываются в течение 5 секунд. Если БД не настроена или недоступна, приложение продолжает сохранять локальное состояние в **localStorage**.
+
+### Развёртывание в Amvera
+
+1. Создайте managed PostgreSQL и запишите внутренний адрес для чтения/записи вида `amvera-<username>-cnpg-<project>-rw`.
+2. В разделе «Переменные» Node.js-приложения задайте `DATABASE_URL` по образцу из `.env.example`. Для внутренней сети оставьте `DATABASE_SSL=false`.
+3. Загрузите репозиторий в Amvera. Файл `amvera.yml` установит Node.js 22, выполнит production build и запустит gateway на порту 3000.
+4. После запуска проверьте `/api/health`, затем сохраните roadmap кнопкой в интерфейсе.
+
+Чтобы перенести существующую строку из Supabase, создайте внешний POSTGRES-домен для Amvera DB и выполните локально:
+
+```bash
+pg_dump "$SUPABASE_DATABASE_URL" --data-only --column-inserts --table=public.roadmap_state > roadmap_state_data.sql
+psql "$AMVERA_DATABASE_URL" -f database/migrations/001_init.sql
+psql "$AMVERA_DATABASE_URL" -f roadmap_state_data.sql
 ```
 
-Или в Supabase Dashboard: Database → Publications → `supabase_realtime` → включить `roadmap_state`.
-
-**Идеи (вкладка pre-backlog)** при настроенном Supabase уходят в облако **автоматически** (с небольшой задержкой после правок). **Основной roadmap** в общей базе по-прежнему обновляется только кнопкой «Сохранить общий roadmap». Без Supabase всё по-прежнему сохраняется в **localStorage** в браузере.
+После переноса удалите временный файл `roadmap_state_data.sql`, поскольку он содержит рабочие данные.
 
 ### Ограничения текущей версии
 
@@ -613,17 +624,18 @@ After that:
 - macOS: `portable/run-macos.command`
 - Windows: `portable/run-windows.bat`
 
-### Shared roadmap (Supabase)
+### Shared roadmap (PostgreSQL)
 
-If Supabase is configured (see `.env.example`), the app saves and loads the shared roadmap from the `roadmap_state` table. For **real-time** updates when another user saves, enable Realtime for this table:
+The application connects to PostgreSQL only through the server-side `/api/roadmap` endpoint, so the connection string and password never reach the browser. The `roadmap_state` table is created on first use; its DDL is also available in `database/migrations/001_init.sql`.
 
-```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE roadmap_state;
-```
+**Ideas (pre-backlog tab)** are saved automatically after a short debounce. The **main roadmap** is updated only by the **Save shared roadmap** button. Changes made by other users are picked up within 5 seconds. If PostgreSQL is unavailable, browser **localStorage** remains available.
 
-Or in Supabase Dashboard: Database → Publications → `supabase_realtime` → enable `roadmap_state`.
+### Deploying to Amvera
 
-**Ideas (pre-backlog tab)** sync to the cloud **automatically** when Supabase is configured (short debounce after edits). The **main roadmap** in the shared row is still updated only via **Save shared roadmap**. Without Supabase, everything continues to persist in the browser **localStorage**.
+1. Create managed PostgreSQL and copy its internal read/write hostname.
+2. Add `DATABASE_URL` to the Node.js application's environment variables as shown in `.env.example`; use `DATABASE_SSL=false` for Amvera's internal network.
+3. Push the repository to Amvera. `amvera.yml` selects Node.js 22, builds the app and starts the gateway on port 3000.
+4. Check `/api/health` after deployment and save the roadmap from the UI.
 
 ### Current limitations
 

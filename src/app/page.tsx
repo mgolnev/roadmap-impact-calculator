@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 
+import { ForecastPanel } from "@/components/ForecastPanel";
 import { AnnualFunnelTable } from "@/components/AnnualFunnelTable";
 import { BaselineTable } from "@/components/BaselineTable";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
@@ -26,18 +27,17 @@ import {
 } from "@/lib/calculations";
 import { taskCountsTowardPlan, withInitiativeDefaults } from "@/lib/initiative";
 import { AdjustableStage, PlanYear, SharedRoadmapPayload, Task, TaskPMData, YearPlan } from "@/lib/types";
-import { persistIdeasOnlyToSupabase } from "@/lib/persist-ideas-supabase";
-import { formatSupabaseError, getSupabaseClientAsync } from "@/lib/supabase";
+import { persistIdeasOnly } from "@/lib/persist-ideas-api";
+import {
+  fetchRoadmapState,
+  formatRoadmapApiError,
+  saveRoadmapState,
+  type RoadmapStateRow,
+} from "@/lib/roadmap-api";
 import { DEFAULT_PLAN_YEAR, NEXT_PLAN_YEAR, PLAN_YEARS, useCalculatorStore } from "@/store/calculator-store";
 import { DEFAULT_BASELINE } from "@/lib/constants";
 import { normalizeSeasonalityWeights } from "@/lib/seasonality";
 import { usePMStore } from "@/store/pm-store";
-
-type RoadmapStateRow = {
-  id: number;
-  payload: Partial<SharedRoadmapPayload> | null;
-  updated_at?: string | null;
-};
 
 type LegacySharedRoadmapPayload = Partial<{
   baseline: YearPlan["baseline"];
@@ -120,29 +120,6 @@ const formatStatusDateTime = (value: string, locale: "ru" | "en") =>
     hour12: false,
   });
 
-async function fetchRoadmapStateRow(
-  supabase: NonNullable<Awaited<ReturnType<typeof getSupabaseClientAsync>>>,
-): Promise<RoadmapStateRow | null> {
-  const byCanonicalId = await supabase
-    .from("roadmap_state")
-    .select("id, payload, updated_at")
-    .eq("id", 1)
-    .maybeSingle();
-
-  if (byCanonicalId.error) throw byCanonicalId.error;
-  if (byCanonicalId.data) return byCanonicalId.data as RoadmapStateRow;
-
-  const latest = await supabase
-    .from("roadmap_state")
-    .select("id, payload, updated_at")
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (latest.error) throw latest.error;
-  return (latest.data as RoadmapStateRow | null) ?? null;
-}
-
 export default function HomePage() {
   const {
     activeYear,
@@ -175,6 +152,13 @@ export default function HomePage() {
     duplicateTask,
     duplicateIdea,
     reorderTasks,
+    forecast,
+    setForecastAnnualNetTarget,
+    setForecastLastFactMonth,
+    updateMonthlyFact,
+    updateMonthlyFactChannel,
+    updateChannelPlan,
+    updateChannelPlanCell,
   } = useCalculatorStore();
   const {
     pmData,
@@ -187,10 +171,11 @@ export default function HomePage() {
   const [activeImport, setActiveImport] = useState<"tasks" | "scenario" | null>(null);
   const [selectedStageFilter, setSelectedStageFilter] = useState<AdjustableStage | "">("");
   const [selectedProjectFilter, setSelectedProjectFilter] = useState("");
-  const [activeTab, setActiveTab] = useState<"business" | "ideas" | "pm">("business");
+  const [activeTab, setActiveTab] = useState<"business" | "ideas" | "pm" | "forecast">("business");
   const [sharedStatus, setSharedStatus] = useState<string | null>(null);
   const tasksSectionRef = useRef<HTMLDivElement>(null);
   const applyingSharedPayloadRef = useRef(false);
+  const lastSharedUpdateRef = useRef<string | null>(null);
   const sourceYearPlan = yearPlans[DEFAULT_PLAN_YEAR];
 
   useEffect(() => {
@@ -372,19 +357,18 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    let unsubscribe: (() => void) | null = null;
-
     const applyPayloadAndStatus = (
       data: { payload: Partial<SharedRoadmapPayload>; updated_at?: string | null },
       loc: "ru" | "en",
-      source: "initial" | "realtime" = "initial",
+      source: "initial" | "remote" = "initial",
     ) => {
       applyingSharedPayloadRef.current = true;
       try {
         const payload = normalizeSharedPayload(data.payload);
         if (!payload) return;
+        lastSharedUpdateRef.current = data.updated_at ?? null;
 
-        if (source === "realtime" && payload._writeMode === "ideas") {
+        if (source === "remote" && payload._writeMode === "ideas") {
           setIdeas(payload.sharedIdeas.map((t) => withInitiativeDefaults(t)));
           const savedAt = data.updated_at ? formatStatusDateTime(data.updated_at, loc) : "";
           setSharedStatus(
@@ -424,12 +408,9 @@ export default function HomePage() {
     };
 
     const loadSharedRoadmap = async () => {
-      const supabase = await getSupabaseClientAsync();
-      if (!supabase) return;
-
       let data: RoadmapStateRow | null = null;
       try {
-        data = await fetchRoadmapStateRow(supabase);
+        data = await fetchRoadmapState();
       } catch {
         return;
       }
@@ -439,48 +420,49 @@ export default function HomePage() {
       const payload = data.payload as Partial<SharedRoadmapPayload>;
       const loc = (payload.locale as "ru" | "en") || locale;
       applyPayloadAndStatus({ payload, updated_at: data.updated_at ?? null }, loc, "initial");
-
-      const ch = supabase
-        .channel("roadmap_state_changes")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "roadmap_state",
-          },
-          (ev) => {
-            const row = ev.new as { payload?: Partial<SharedRoadmapPayload>; updated_at?: string } | null;
-            if (!row?.payload) return;
-            const ploc = (row.payload.locale as "ru" | "en") || "ru";
-            applyPayloadAndStatus(
-              { payload: row.payload, updated_at: row.updated_at ?? null },
-              ploc,
-              "realtime",
-            );
-          },
-        )
-        .subscribe();
-      unsubscribe = () => supabase.removeChannel(ch);
     };
 
     void loadSharedRoadmap();
 
+    let pollInProgress = false;
+    const pollTimer = window.setInterval(async () => {
+      if (pollInProgress || document.visibilityState === "hidden") return;
+      pollInProgress = true;
+      try {
+        const data = await fetchRoadmapState();
+        if (!data?.payload || data.updated_at === lastSharedUpdateRef.current) return;
+        const payload = data.payload as Partial<SharedRoadmapPayload>;
+        const loc = (payload.locale as "ru" | "en") || "ru";
+        applyPayloadAndStatus(
+          { payload, updated_at: data.updated_at ?? null },
+          loc,
+          "remote",
+        );
+      } catch {
+        // The app remains fully usable via localStorage while PostgreSQL is unavailable.
+      } finally {
+        pollInProgress = false;
+      }
+    }, 5_000);
+
     return () => {
-      unsubscribe?.();
+      window.clearInterval(pollTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Автосохранение идей в Supabase (roadmap по-прежнему — только кнопкой). */
+  /** Автосохранение идей в PostgreSQL (roadmap по-прежнему — только кнопкой). */
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
 
     const run = async () => {
       const ideasNow = useCalculatorStore.getState().ideas;
-      const result = await persistIdeasOnlyToSupabase(ideasNow);
+      const result = await persistIdeasOnly(ideasNow);
       if (cancelled) return;
+      if (result.ok) {
+        lastSharedUpdateRef.current = result.updatedAt ?? lastSharedUpdateRef.current;
+      }
       if (!result.ok && result.error) {
         const loc = useCalculatorStore.getState().locale;
         setSharedStatus(
@@ -509,12 +491,6 @@ export default function HomePage() {
   }, []);
 
   const saveSharedRoadmap = async () => {
-    const supabase = await getSupabaseClientAsync();
-    if (!supabase) {
-      setSharedStatus(locale === "ru" ? "Supabase не настроен" : "Supabase is not configured");
-      return;
-    }
-
     setSharedStatus(locale === "ru" ? "Сохранение..." : "Saving...");
 
     const calc = useCalculatorStore.getState();
@@ -522,12 +498,12 @@ export default function HomePage() {
     let serverRow: RoadmapStateRow | null = null;
     let serverPayload: Partial<SharedRoadmapPayload> | null = null;
     try {
-      serverRow = await fetchRoadmapStateRow(supabase);
+      serverRow = await fetchRoadmapState();
       serverPayload = serverRow?.payload ?? null;
     } catch (error) {
       setSharedStatus(
         (calc.locale === "ru" ? "Ошибка сохранения: " : "Failed to save: ") +
-          formatSupabaseError(error),
+          formatRoadmapApiError(error),
       );
       return;
     }
@@ -553,20 +529,19 @@ export default function HomePage() {
       _writeMode: "full",
     };
 
-    const updated = { payload, updated_at: new Date().toISOString() };
-    const { error } = serverRow?.id != null
-      ? await supabase.from("roadmap_state").update(updated).eq("id", serverRow.id)
-      : await supabase.from("roadmap_state").insert(updated);
-
-    if (error) {
+    let savedRow: RoadmapStateRow;
+    try {
+      savedRow = await saveRoadmapState(payload);
+    } catch (error) {
       setSharedStatus(
         (calc.locale === "ru" ? "Ошибка сохранения: " : "Failed to save: ") +
-          formatSupabaseError(error),
+          formatRoadmapApiError(error),
       );
       return;
     }
 
-    const savedAt = formatStatusDateTime(new Date().toISOString(), calc.locale);
+    lastSharedUpdateRef.current = savedRow.updated_at ?? null;
+    const savedAt = formatStatusDateTime(savedRow.updated_at ?? new Date().toISOString(), calc.locale);
     setSharedStatus(
       calc.locale === "ru" ? `Роадмап сохранён: ${savedAt}` : `Roadmap saved: ${savedAt}`,
     );
@@ -624,6 +599,15 @@ export default function HomePage() {
                 onClick={() => setActiveTab("ideas")}
               >
                 {text.tabIdeas}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "forecast"}
+                className={`tab-button ${activeTab === "forecast" ? "tab-active" : ""}`}
+                onClick={() => setActiveTab("forecast")}
+              >
+                {text.tabForecast}
               </button>
               <button
                 type="button"
@@ -802,6 +786,24 @@ export default function HomePage() {
       ) : null}
 
       {activeTab === "pm" ? <ProjectTracker locale={locale} tasks={tasks} /> : null}
+
+      {activeTab === "forecast" ? (
+        <ForecastPanel
+          locale={locale}
+          planYear={activeYear}
+          baseline={baseline}
+          tasks={tasks}
+          trafficChangePercent={trafficChangePercent}
+          timelineMode={timelineMode}
+          forecast={forecast}
+          onSetAnnualNetTarget={setForecastAnnualNetTarget}
+          onSetLastFactMonth={setForecastLastFactMonth}
+          onUpdateMonthlyFact={updateMonthlyFact}
+          onUpdateMonthlyFactChannel={updateMonthlyFactChannel}
+          onUpdateChannelPlan={updateChannelPlan}
+          onUpdateChannelPlanCell={updateChannelPlanCell}
+        />
+      ) : null}
     </main>
   );
 }

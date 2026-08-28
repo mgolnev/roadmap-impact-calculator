@@ -382,6 +382,7 @@ export function TasksTable({
 
   useEffect(() => {
     if (!hasActiveFilters || filteredTasks.length >= tasks.length) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setToastVisible(false);
       return;
     }

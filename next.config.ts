@@ -1,12 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Amvera serves this export through scripts/amvera-server.mjs, which also
+  // exposes the server-only PostgreSQL API. Portable builds use the same files.
   output: "export",
   reactStrictMode: true,
-  env: {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  },
 };
 
 export default nextConfig;

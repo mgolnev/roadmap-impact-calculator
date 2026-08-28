@@ -226,6 +226,74 @@ export type TaskPMData = {
   phases: Record<PhaseName, PhaseStatus>;
 };
 
+/** Маркетинговые каналы трафика для вкладки «Факт и прогноз». */
+export type MarketingChannelId = "organic" | "paid" | "crm" | "media";
+
+export const MARKETING_CHANNEL_IDS: MarketingChannelId[] = ["organic", "paid", "crm", "media"];
+
+export type ChannelMonthlyMetrics = {
+  sessions: number;
+  /** Конверсия sessions → заказ для канала (доля 0–1). */
+  cr: number;
+};
+
+export type MonthlyFactStatus = "open" | "closed" | "partial";
+
+export type MonthlyFactEntry = {
+  status: MonthlyFactStatus;
+  /** Прошедшие дни в неполном месяце (для нормализации на полный месяц). */
+  partialDays?: number;
+  /** Календарных дней в месяце. */
+  daysInMonth?: number;
+  channels: Partial<Record<MarketingChannelId, ChannelMonthlyMetrics>>;
+  atv: number;
+  buyoutRate: number;
+};
+
+export type MarketingChannelPlan = {
+  id: MarketingChannelId;
+  /** Месяц подключения канала (1–12). */
+  activeFromMonth: number;
+  /** Учитывать в сценарии «+ медиа». */
+  includeInMediaScenario: boolean;
+  planSessions: number[];
+  planCr: number[];
+};
+
+export type ForecastPlan = {
+  /** Годовой план NET (₽). */
+  annualNetTarget: number;
+  /** Последний месяц с фактом (1–12). */
+  lastFactMonth: number;
+  channels: MarketingChannelPlan[];
+  monthlyFacts: MonthlyFactEntry[];
+};
+
+export type ForecastScenarioId = "do_nothing" | "media" | "media_roadmap";
+
+export type ForecastMonthRow = {
+  month: number;
+  monthLabel: string;
+  source: "fact" | "forecast";
+  sessions: number;
+  orders: number;
+  atv: number;
+  buyoutRate: number;
+  grossRevenue: number;
+  netRevenue: number;
+  planNetRevenue: number;
+  channelSessions: Record<MarketingChannelId, number>;
+};
+
+export type ForecastScenarioResult = {
+  id: ForecastScenarioId;
+  months: ForecastMonthRow[];
+  annualNetRevenue: number;
+  annualPlanNetRevenue: number;
+  deltaToPlan: number;
+  deltaToDoNothing: number;
+};
+
 export type YearPlan = {
   baseline: BaselineInput;
   /** Roadmap / план (отдельно от pre-backlog идей). */
@@ -234,6 +302,8 @@ export type YearPlan = {
   /** Какой горизонт сроков использовать в годовой модели. */
   timelineMode?: TimelineMode;
   pmData: Record<string, TaskPMData>;
+  /** Факт, каналы и прогноз на год. */
+  forecast?: ForecastPlan;
 };
 
 export type MultiYearRoadmapPayload = {
@@ -243,11 +313,10 @@ export type MultiYearRoadmapPayload = {
   yearPlans: Record<PlanYear, YearPlan>;
   locale: Locale;
   /**
-   * Служебное поле для Supabase realtime: при `ideas` колонка обновляется автосохранением идей,
+   * Служебное поле синхронизации: при `ideas` запись обновляется автосохранением идей,
    * не нужно трогать локальный roadmap. Полное сохранение кнопкой — `full`.
    */
   _writeMode?: "ideas" | "full";
 };
 
 export type SharedRoadmapPayload = MultiYearRoadmapPayload;
-

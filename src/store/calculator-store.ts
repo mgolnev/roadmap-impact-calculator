@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { DEFAULT_BASELINE, DEFAULT_TASKS } from "@/lib/constants";
+import { createDefaultForecastPlan } from "@/lib/forecast/constants";
 import { normalizeSeasonalityWeights, uniformSeasonalityWeights } from "@/lib/seasonality";
 import {
   buildDemotedIdeaTaskFromRoadmapTask,
@@ -18,9 +19,13 @@ import {
   AdjustableStage,
   AnnualFunnel,
   BaselineInput,
+  ChannelMonthlyMetrics,
+  ForecastPlan,
   ImpactType,
   InitiativeStatus,
   Locale,
+  MarketingChannelId,
+  MonthlyFactStatus,
   PlanYear,
   Priority,
   SharedRoadmapPayload,
@@ -34,12 +39,56 @@ export const PLAN_YEARS: PlanYear[] = [2026, 2027];
 export const DEFAULT_PLAN_YEAR: PlanYear = 2026;
 export const NEXT_PLAN_YEAR: PlanYear = 2027;
 
+const normalizeForecastPlan = (forecast: Partial<ForecastPlan> | undefined): ForecastPlan => {
+  const defaults = createDefaultForecastPlan();
+  if (!forecast) return defaults;
+
+  const channels = defaults.channels.map((defaultChannel) => {
+    const incoming = forecast.channels?.find((c) => c.id === defaultChannel.id);
+    if (!incoming) return defaultChannel;
+    return {
+      ...defaultChannel,
+      activeFromMonth: incoming.activeFromMonth ?? defaultChannel.activeFromMonth,
+      includeInMediaScenario:
+        incoming.includeInMediaScenario ?? defaultChannel.includeInMediaScenario,
+      planSessions: Array.from({ length: 12 }, (_, i) => incoming.planSessions?.[i] ?? 0),
+      planCr: Array.from({ length: 12 }, (_, i) => incoming.planCr?.[i] ?? 0),
+    };
+  });
+
+  const monthlyFacts = Array.from({ length: 12 }, (_, i) => {
+    const incoming = forecast.monthlyFacts?.[i];
+    const fallback = defaults.monthlyFacts[i];
+    if (!incoming) return fallback;
+    return {
+      status: (incoming.status as MonthlyFactStatus) ?? fallback.status,
+      partialDays: incoming.partialDays ?? fallback.partialDays,
+      daysInMonth: incoming.daysInMonth ?? fallback.daysInMonth,
+      channels: incoming.channels ?? {},
+      atv: Number.isFinite(incoming.atv) ? incoming.atv : 0,
+      buyoutRate: Number.isFinite(incoming.buyoutRate) ? incoming.buyoutRate : 0,
+    };
+  });
+
+  return {
+    annualNetTarget: Number.isFinite(forecast.annualNetTarget)
+      ? Number(forecast.annualNetTarget)
+      : defaults.annualNetTarget,
+    lastFactMonth: Number.isFinite(forecast.lastFactMonth)
+      ? Math.min(12, Math.max(1, Number(forecast.lastFactMonth)))
+      : defaults.lastFactMonth,
+    channels,
+    monthlyFacts,
+  };
+};
+
 const emptyYearPlan = (baseline: BaselineInput = DEFAULT_BASELINE): YearPlan => ({
   baseline,
   tasks: [],
   trafficChangePercent: 0,
   timelineMode: "plan",
   pmData: {},
+  forecast: createDefaultForecastPlan(),
 });
 
 const normalizeTasks = (tasks: Task[] | undefined, fallback: Task[] = []) =>
@@ -74,6 +123,7 @@ const normalizeYearPlan = (plan: Partial<YearPlan> | undefined, fallbackTasks: T
     : 0,
   timelineMode: plan?.timelineMode === "dev_committed" ? "dev_committed" : "plan",
   pmData: plan?.pmData && typeof plan.pmData === "object" ? plan.pmData : {},
+  forecast: normalizeForecastPlan(plan?.forecast),
 });
 
 const defaultYearPlans = (): Record<PlanYear, YearPlan> => ({
@@ -134,6 +184,7 @@ type StoreState = {
   locale: Locale;
   /** Сортировка таблицы задач на вкладке «Бизнес и продукт» (null — порядок как в store). */
   roadmapTableSort: RoadmapTableSortState | null;
+  forecast: ForecastPlan;
   setActiveYear: (year: PlanYear) => void;
   ensureYearPlan: (year: PlanYear) => void;
   copyTasksBetweenYears: (sourceYear: PlanYear, targetYear: PlanYear) => void;
@@ -170,6 +221,38 @@ type StoreState = {
   setLocale: (locale: Locale) => void;
   toggleRoadmapTableSort: (column: RoadmapSortColumn) => void;
   resetRoadmapTableSort: () => void;
+  setForecastAnnualNetTarget: (value: number) => void;
+  setForecastLastFactMonth: (month: number) => void;
+  updateMonthlyFact: (
+    monthIndex: number,
+    patch: Partial<{
+      status: MonthlyFactStatus;
+      partialDays: number;
+      daysInMonth: number;
+      atv: number;
+      buyoutRate: number;
+    }>,
+  ) => void;
+  updateMonthlyFactChannel: (
+    monthIndex: number,
+    channelId: MarketingChannelId,
+    patch: Partial<ChannelMonthlyMetrics>,
+  ) => void;
+  updateChannelPlan: (
+    channelId: MarketingChannelId,
+    patch: Partial<{
+      activeFromMonth: number;
+      includeInMediaScenario: boolean;
+      planSessions: number[];
+      planCr: number[];
+    }>,
+  ) => void;
+  updateChannelPlanCell: (
+    channelId: MarketingChannelId,
+    field: "planSessions" | "planCr",
+    monthIndex: number,
+    value: number,
+  ) => void;
 };
 
 const newRoadmapTaskTemplate = (index: number): Task => ({
@@ -207,6 +290,7 @@ export const useCalculatorStore = create<StoreState>()(
       timelineMode: "plan",
       locale: "ru",
       roadmapTableSort: null,
+      forecast: createDefaultForecastPlan(),
       setActiveYear: (year) =>
         set((state) => {
           const planYear = toPlanYear(year);
@@ -217,6 +301,7 @@ export const useCalculatorStore = create<StoreState>()(
             tasks: plan.tasks,
             trafficChangePercent: plan.trafficChangePercent,
             timelineMode: plan.timelineMode ?? "plan",
+            forecast: normalizeForecastPlan(plan.forecast),
           };
         }),
       ensureYearPlan: (year) =>
@@ -293,6 +378,7 @@ export const useCalculatorStore = create<StoreState>()(
             ideas: normalizeTasks(payload.sharedIdeas, []),
             trafficChangePercent: activePlan.trafficChangePercent,
             timelineMode: activePlan.timelineMode ?? "plan",
+            forecast: normalizeForecastPlan(activePlan.forecast),
             locale: payload.locale ?? state.locale,
           };
         }),
@@ -705,10 +791,114 @@ export const useCalculatorStore = create<StoreState>()(
           return { roadmapTableSort: { column, direction: "asc" } };
         }),
       resetRoadmapTableSort: () => set({ roadmapTableSort: null }),
+      setForecastAnnualNetTarget: (value) =>
+        set((state) => {
+          const forecast = {
+            ...state.forecast,
+            annualNetTarget: Number.isFinite(value) ? value : state.forecast.annualNetTarget,
+          };
+          const currentPlan = state.yearPlans[state.activeYear] ?? emptyYearPlan();
+          return {
+            forecast,
+            yearPlans: {
+              ...state.yearPlans,
+              [state.activeYear]: { ...currentPlan, forecast },
+            },
+          };
+        }),
+      setForecastLastFactMonth: (month) =>
+        set((state) => {
+          const forecast = {
+            ...state.forecast,
+            lastFactMonth: Math.min(12, Math.max(1, Math.round(month))),
+          };
+          const currentPlan = state.yearPlans[state.activeYear] ?? emptyYearPlan();
+          return {
+            forecast,
+            yearPlans: {
+              ...state.yearPlans,
+              [state.activeYear]: { ...currentPlan, forecast },
+            },
+          };
+        }),
+      updateMonthlyFact: (monthIndex, patch) =>
+        set((state) => {
+          if (monthIndex < 0 || monthIndex > 11) return state;
+          const monthlyFacts = state.forecast.monthlyFacts.map((entry, index) =>
+            index === monthIndex ? { ...entry, ...patch } : entry,
+          );
+          const forecast = { ...state.forecast, monthlyFacts };
+          const currentPlan = state.yearPlans[state.activeYear] ?? emptyYearPlan();
+          return {
+            forecast,
+            yearPlans: {
+              ...state.yearPlans,
+              [state.activeYear]: { ...currentPlan, forecast },
+            },
+          };
+        }),
+      updateMonthlyFactChannel: (monthIndex, channelId, patch) =>
+        set((state) => {
+          if (monthIndex < 0 || monthIndex > 11) return state;
+          const monthlyFacts = state.forecast.monthlyFacts.map((entry, index) => {
+            if (index !== monthIndex) return entry;
+            const current = entry.channels[channelId] ?? { sessions: 0, cr: 0 };
+            return {
+              ...entry,
+              channels: {
+                ...entry.channels,
+                [channelId]: { ...current, ...patch },
+              },
+            };
+          });
+          const forecast = { ...state.forecast, monthlyFacts };
+          const currentPlan = state.yearPlans[state.activeYear] ?? emptyYearPlan();
+          return {
+            forecast,
+            yearPlans: {
+              ...state.yearPlans,
+              [state.activeYear]: { ...currentPlan, forecast },
+            },
+          };
+        }),
+      updateChannelPlan: (channelId, patch) =>
+        set((state) => {
+          const channels = state.forecast.channels.map((channel) =>
+            channel.id === channelId ? { ...channel, ...patch } : channel,
+          );
+          const forecast = { ...state.forecast, channels };
+          const currentPlan = state.yearPlans[state.activeYear] ?? emptyYearPlan();
+          return {
+            forecast,
+            yearPlans: {
+              ...state.yearPlans,
+              [state.activeYear]: { ...currentPlan, forecast },
+            },
+          };
+        }),
+      updateChannelPlanCell: (channelId, field, monthIndex, value) =>
+        set((state) => {
+          if (monthIndex < 0 || monthIndex > 11) return state;
+          const channels = state.forecast.channels.map((channel) => {
+            if (channel.id !== channelId) return channel;
+            const nextArray = [...channel[field]];
+            nextArray[monthIndex] = Number.isFinite(value) ? value : 0;
+            return { ...channel, [field]: nextArray };
+          });
+          const forecast = { ...state.forecast, channels };
+          const currentPlan = state.yearPlans[state.activeYear] ?? emptyYearPlan();
+          return {
+            forecast,
+            yearPlans: {
+              ...state.yearPlans,
+              [state.activeYear]: { ...currentPlan, forecast },
+            },
+          };
+        }),
     }),
     {
       name: "roadmap-impact-calculator-store",
-      version: 8,
+      version: 9,
       migrate: (persistedState, persistedVersion) => {
         const version = typeof persistedVersion === "number" ? persistedVersion : 0;
         const state = persistedState as {
@@ -839,6 +1029,7 @@ export const useCalculatorStore = create<StoreState>()(
           timelineMode: activePlan.timelineMode ?? "plan",
           locale: state?.locale ?? "ru",
           roadmapTableSort,
+          forecast: normalizeForecastPlan(activePlan.forecast),
         };
       },
     },
